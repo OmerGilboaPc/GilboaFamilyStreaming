@@ -523,7 +523,6 @@ function openPlayer({ contentId, title, meta, video, resumeAt = 0, nextEpisode =
     v.addEventListener("loadedmetadata", () => { try{ v.currentTime = resumeAt || 0; }catch{} saveProgress(contentId, v.currentTime, v.duration); });
     v.addEventListener("timeupdate", () => saveProgress(contentId, v.currentTime, v.duration));
   }
-}
 
 function showRequests(){ renderRequests(); openModal("requestsModal"); }
 function renderRequests(){
