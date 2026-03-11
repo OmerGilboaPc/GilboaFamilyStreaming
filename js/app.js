@@ -440,37 +440,32 @@ function destroyPlayer(){
   els.playerStatus.textContent = "";
 }
 
-function openPlayer({ contentId, title, meta, video }){
+function openPlayer({ contentId, title, meta, video, resumeAt = 0, nextEpisode = null }){
 
   els.playerTitle.textContent = title;
   els.playerMeta.textContent = meta || "";
 
   openModal("playerModal");
 
-  const videoId = extractYoutubeId(video);
-
   els.playerHost.innerHTML = `
-  <div class="plyr__video-embed" id="player">
-
-  <iframe
-  src="https://www.youtube.com/embed/${videoId}?origin=${location.origin}&iv_load_policy=3&modestbranding=1&rel=0"
-  allowfullscreen
-  allow="autoplay">
-  </iframe>
-
-  </div>
+    <video
+      id="streamPlayer"
+      class="video-js vjs-big-play-centered"
+      controls
+      preload="auto"
+      width="100%"
+      height="auto"
+      data-setup='{}'
+    >
+      <source src="${video}" type="video/mp4">
+    </video>
   `;
 
-  const player = new Plyr('#player',{
-    controls:[
-      'play',
-      'progress',
-      'current-time',
-      'mute',
-      'volume',
-      'settings',
-      'fullscreen'
-    ]
+  const player = videojs("streamPlayer", {
+    controls: true,
+    autoplay: true,
+    preload: "auto",
+    fluid: true
   });
 
 }
