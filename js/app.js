@@ -440,89 +440,40 @@ function destroyPlayer(){
   els.playerStatus.textContent = "";
 }
 
-function openPlayer({ contentId, title, meta, video, resumeAt = 0, nextEpisode = null }) {
+function openPlayer({ contentId, title, meta, video }){
 
   els.playerTitle.textContent = title;
   els.playerMeta.textContent = meta || "";
-  els.playerStatus.textContent = resumeAt ? `ממשיך מ־${formatTime(resumeAt)}` : "";
 
-  els.nextEpisodeBtn.classList.toggle("hidden", !nextEpisode);
-  els.nextEpisodeBtn.onclick = () => nextEpisode && nextEpisode();
-
-  els.playerHost.innerHTML = "";
   openModal("playerModal");
 
-  if (isYouTube(video)) {
+  const videoId = extractYoutubeId(video);
 
-    const embed = normalizeYouTube(video);
+  els.playerHost.innerHTML = `
+  <div class="plyr__video-embed" id="player">
 
-    destroyPlayer();
+  <iframe
+  src="https://www.youtube.com/embed/${videoId}?origin=${location.origin}&iv_load_policy=3&modestbranding=1&rel=0"
+  allowfullscreen
+  allow="autoplay">
+  </iframe>
 
-    els.playerHost.innerHTML = `
-      <iframe
-        width="100%"
-        height="100%"
-        src="${embed}&autoplay=1"
-        frameborder="0"
-        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-        allowfullscreen>
-      </iframe>
-    `;
+  </div>
+  `;
 
-    let watchStart = Date.now();
+  const player = new Plyr('#player',{
+    controls:[
+      'play',
+      'progress',
+      'current-time',
+      'mute',
+      'volume',
+      'settings',
+      'fullscreen'
+    ]
+  });
 
-    state.ytTimer = setInterval(() => {
-      const seconds = Math.floor((Date.now() - watchStart) / 1000);
-      saveProgress(contentId, seconds, seconds + 1);
-    }, 5000);
-
-  } else {
-
-    els.playerHost.innerHTML =
-      `<video id="nativePlayer" controls autoplay src="${esc(video)}"></video>`;
-
-    const v = $("nativePlayer");
-
-    v.addEventListener("loadedmetadata", () => {
-      try { v.currentTime = resumeAt || 0 } catch {}
-      saveProgress(contentId, v.currentTime, v.duration);
-    });
-
-    v.addEventListener("timeupdate", () => {
-      saveProgress(contentId, v.currentTime, v.duration);
-    });
-
-  }
 }
-
-  if(isYouTube(video)){
-    const embed = normalizeYouTube(video);
-    const idMatch = embed.match(/embed\/([^?&/]+)/);
-    const videoId = idMatch ? idMatch[1] : null;
-    els.playerHost.innerHTML = `<div id="yt-player-host"></div>`;
-    const make = () => {
-      destroyPlayer();
-      state.ytPlayer = new YT.Player("yt-player-host", {
-        videoId,
-        playerVars: { autoplay:1, rel:0, modestbranding:1, start: Math.floor(resumeAt || 0) },
-        events: {
-          onReady: (event) => {
-            if(resumeAt) event.target.seekTo(resumeAt, true);
-            state.ytTimer = setInterval(() => {
-              try{ saveProgress(contentId, event.target.getCurrentTime(), event.target.getDuration()); }catch{}
-            }, 5000);
-          }
-        }
-      });
-    };
-    if(window.YT && window.YT.Player) make();
-    else window.onYouTubeIframeAPIReady = make;
-  } else {
-    els.playerHost.innerHTML = `<video id="nativePlayer" controls autoplay src="${esc(video)}"></video>`;
-    const v = $("nativePlayer");
-    v.addEventListener("loadedmetadata", () => { try{ v.currentTime = resumeAt || 0; }catch{} saveProgress(contentId, v.currentTime, v.duration); });
-    v.addEventListener("timeupdate", () => saveProgress(contentId, v.currentTime, v.duration));
-  }
 
 function showRequests(){ renderRequests(); openModal("requestsModal"); }
 function renderRequests(){
@@ -552,4 +503,15 @@ function randomPick(){
   if(!movies.length) return toast("אין סרטים כרגע");
   const [id] = movies[Math.floor(Math.random()*movies.length)];
   openDetails("movie", id);
+}
+
+function extractYoutubeId(url){
+
+  const reg =
+  /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/;
+
+  const match = url.match(reg);
+
+  return match ? match[1] : url;
+
 }
