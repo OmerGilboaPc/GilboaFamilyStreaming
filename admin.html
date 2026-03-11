@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin • GILBOASTREAMFAMILY</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="admin-body">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <h1>🛠 Admin Panel</h1>
+        <div class="muted">ניהול מלא של הסרטייה</div>
+      </div>
+      <a href="index.html" class="btn btn-secondary">חזרה לאתר</a>
+    </div>
+
+    <div class="admin-grid">
+      <section class="glass admin-card">
+        <h3>➕ הוספת סרט</h3>
+        <div class="form-grid">
+          <input id="movieTitle" placeholder="שם הסרט" />
+          <input id="moviePoster" placeholder="Poster URL" />
+          <input id="movieVideo" placeholder="YouTube embed / MP4 URL" />
+          <input id="movieCategory" placeholder="קטגוריה" />
+          <textarea id="movieDescription" placeholder="תיאור"></textarea>
+        </div>
+        <button id="addMovieBtn" class="btn btn-primary">הוסף סרט</button>
+      </section>
+
+      <section class="glass admin-card">
+        <h3>📺 הוספת סדרה</h3>
+        <div class="form-grid">
+          <input id="seriesTitle" placeholder="שם הסדרה" />
+          <input id="seriesPoster" placeholder="Poster URL" />
+          <input id="seriesCategory" placeholder="קטגוריה" />
+          <textarea id="seriesDescription" placeholder="תיאור"></textarea>
+        </div>
+        <button id="addSeriesBtn" class="btn btn-primary">הוסף סדרה</button>
+      </section>
+
+      <section class="glass admin-card">
+        <h3>🎞 הוספת פרק</h3>
+        <div class="form-grid">
+          <select id="episodeSeriesSelect"></select>
+          <input id="episodeSeason" type="number" min="1" placeholder="עונה" />
+          <input id="episodeNumber" type="number" min="1" placeholder="מספר פרק" />
+          <input id="episodeTitle" placeholder="שם הפרק" />
+          <input id="episodePoster" placeholder="Poster URL (אופציונלי)" />
+          <input id="episodeVideo" placeholder="YouTube embed / MP4 URL" />
+          <textarea id="episodeDescription" placeholder="תיאור הפרק"></textarea>
+        </div>
+        <button id="addEpisodeBtn" class="btn btn-primary">הוסף פרק</button>
+      </section>
+
+      <section class="glass admin-card">
+        <h3>📩 בקשות</h3>
+        <div id="adminRequestsList" class="stack"></div>
+      </section>
+
+      <section class="glass admin-card admin-card-full">
+        <h3>🗂 תוכן קיים</h3>
+        <div class="admin-columns">
+          <div>
+            <h4>סרטים</h4>
+            <div id="adminMoviesList" class="stack"></div>
+          </div>
+          <div>
+            <h4>סדרות</h4>
+            <div id="adminSeriesList" class="stack"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="glass admin-card admin-card-full">
+        <h3>👥 משתמשים ופרופילים</h3>
+        <div id="adminUsersList" class="stack"></div>
+      </section>
+    </div>
+  </div>
+
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>
