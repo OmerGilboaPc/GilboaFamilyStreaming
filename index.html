@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GILBOASTREAMFAMILY</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="splash" class="splash">
+    <div class="splash-inner">
+      <div class="splash-title">GILBOASTREAMFAMILY</div>
+      <div class="splash-sub">Streaming for the family</div>
+    </div>
+  </div>
+
+  <section id="authScreen" class="screen auth-screen">
+    <div class="auth-card glass">
+      <div class="logo-row">
+        <div class="logo-box">G</div>
+        <div>
+          <div class="logo-title">GILBOASTREAMFAMILY</div>
+          <div class="logo-sub">ספריית הסטרימינג המשפחתית שלך</div>
+        </div>
+      </div>
+
+      <div class="tab-row">
+        <button class="tab active" data-auth-mode="login">התחברות</button>
+        <button class="tab" data-auth-mode="register">הרשמה</button>
+      </div>
+
+      <div class="form-grid">
+        <input id="authEmail" type="email" placeholder="אימייל" />
+        <input id="authPassword" type="password" placeholder="סיסמה" />
+      </div>
+
+      <button id="authActionBtn" class="btn btn-primary btn-block">התחברות</button>
+      <p id="authError" class="error"></p>
+      <div class="small muted">האדמין מוגדר לפי האימייל: <strong>omergilboapc@gmail.com</strong></div>
+    </div>
+  </section>
+
+  <section id="profilesScreen" class="screen hidden">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h2>מי צופה עכשיו?</h2>
+          <div class="muted">בחר פרופיל כדי להיכנס</div>
+        </div>
+        <div class="row">
+          <button id="openProfilesManagerBtn" class="btn btn-secondary">ניהול פרופילים</button>
+          <button id="signOutProfilesBtn" class="btn btn-secondary">התנתקות</button>
+        </div>
+      </div>
+      <div id="profilesGrid" class="profiles-grid"></div>
+    </div>
+  </section>
+
+  <section id="appScreen" class="screen hidden">
+    <header class="topbar">
+      <div class="logo-row">
+        <div class="logo-box">G</div>
+        <div>
+          <div class="logo-title">GILBOASTREAMFAMILY</div>
+          <div class="logo-sub" id="activeProfileLabel">פרופיל</div>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <input id="searchInput" class="search-input" placeholder="חיפוש סרטים, סדרות ופרקים..." />
+        <button id="randomBtn" class="btn btn-secondary">🎲 הפתיעו אותי</button>
+        <button id="requestsBtn" class="btn btn-secondary">📩 בקשות</button>
+        <button id="adminBtn" class="btn btn-secondary hidden">🛠 אדמין</button>
+        <button id="switchProfileBtn" class="btn btn-secondary">👤 החלף פרופיל</button>
+        <button id="signOutBtn" class="btn btn-secondary">התנתקות</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="hero glass">
+        <div>
+          <div class="eyebrow">PRIVATE • FAMILY • STREAMING</div>
+          <h1>ברוכים הבאים ל־<span>GILBOASTREAMFAMILY</span></h1>
+          <p>סרטים, סדרות, עונות, פרקים, דירוגים, המשך צפייה, בקשות ואדמין מלא — הכול במקום אחד.</p>
+          <div class="row">
+            <button id="heroRandomBtn" class="btn btn-primary">🎲 בחר לי משהו</button>
+            <button id="heroRequestsBtn" class="btn btn-secondary">📩 בקשת סרט</button>
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div class="stat glass-dark"><span id="moviesCount">0</span><small>סרטים</small></div>
+          <div class="stat glass-dark"><span id="seriesCount">0</span><small>סדרות</small></div>
+          <div class="stat glass-dark"><span id="episodesCount">0</span><small>פרקים</small></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head"><h2>המשך צפייה</h2></div>
+        <div id="continueGrid" class="content-grid content-grid-wide"></div>
+      </section>
+
+      <section>
+        <div class="section-head"><h2>סרטים</h2></div>
+        <div id="moviesGrid" class="content-grid"></div>
+      </section>
+
+      <section>
+        <div class="section-head"><h2>סדרות</h2></div>
+        <div id="seriesGrid" class="content-grid"></div>
+      </section>
+    </main>
+  </section>
+
+  <div id="detailsModal" class="modal hidden">
+    <div class="modal-backdrop" data-close="detailsModal"></div>
+    <div class="modal-dialog modal-wide">
+      <button class="modal-close" data-close="detailsModal">✕</button>
+      <div id="detailsBody"></div>
+    </div>
+  </div>
+
+  <div id="playerModal" class="modal hidden">
+    <div class="modal-backdrop" data-close="playerModal"></div>
+    <div class="modal-dialog modal-player">
+      <button class="modal-close" data-close="playerModal">✕</button>
+      <div class="player-head">
+        <div>
+          <div id="playerTitle" class="player-title"></div>
+          <div id="playerMeta" class="muted"></div>
+        </div>
+        <button id="nextEpisodeBtn" class="btn btn-primary hidden">Next Episode ▶</button>
+      </div>
+      <div id="playerHost" class="player-host"></div>
+      <div id="playerStatus" class="small muted"></div>
+    </div>
+  </div>
+
+  <div id="requestsModal" class="modal hidden">
+    <div class="modal-backdrop" data-close="requestsModal"></div>
+    <div class="modal-dialog">
+      <button class="modal-close" data-close="requestsModal">✕</button>
+      <h3>📩 בקשת סרט / סדרה</h3>
+      <div class="form-grid">
+        <input id="requestTitle" placeholder="שם הסרט או הסדרה" />
+        <textarea id="requestNote" placeholder="הערה (אופציונלי)"></textarea>
+      </div>
+      <button id="sendRequestBtn" class="btn btn-primary">שלח בקשה</button>
+      <div id="requestsList" class="stack top-gap"></div>
+    </div>
+  </div>
+
+  <div id="profilesModal" class="modal hidden">
+    <div class="modal-backdrop" data-close="profilesModal"></div>
+    <div class="modal-dialog">
+      <button class="modal-close" data-close="profilesModal">✕</button>
+      <h3>ניהול פרופילים</h3>
+      <div class="form-grid">
+        <input id="newProfileName" placeholder="שם פרופיל" />
+        <input id="newProfileAvatar" placeholder="אימוג'י (למשל 😀)" />
+      </div>
+      <button id="addProfileBtn" class="btn btn-primary">הוסף פרופיל</button>
+      <div id="profilesManageList" class="stack top-gap"></div>
+    </div>
+  </div>
+
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
