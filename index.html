@@ -1,5 +1,37 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
+  <style>
+  /* משנה את הפונט של כל האתר למשהו מודרני */
+  body { font-family: 'Heebo', sans-serif; background-color: #141414; color: white; }
+
+  /* עיצוב הנגן עצמו */
+  .video-js.vjs-theme-city {
+    width: 100%; /* שהנגן יתפוס את כל רוחב המיכל שלו */
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+
+  /* שינוי צבע הפס להתקדמות לאדום "שכונה" */
+  .vjs-theme-city .vjs-play-progress, .vjs-theme-city .vjs-volume-level {
+    background-color: #e50914;
+  }
+
+  /* כפתור Play ענק באמצע כשעוצרים */
+  .vjs-theme-city .vjs-big-play-button {
+    background-color: rgba(229, 9, 20, 0.8);
+    border: none;
+    height: 80px;
+    width: 80px;
+    line-height: 80px;
+    border-radius: 50%;
+  }
+
+  /* העלמת כפתור ה-Play הקטן בפינה כשהגדול מופיע */
+  .vjs-theme-city:hover .vjs-big-play-button {
+    background-color: #e50914;
+  }
+</style>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
