@@ -514,13 +514,6 @@ function openPlayer({ contentId, title, meta, video, resumeAt = 0, nextEpisode =
   }
 
 }
-  els.playerTitle.textContent = title;
-  els.playerMeta.textContent = meta || "";
-  els.playerStatus.textContent = resumeAt ? `ממשיך מ־${formatTime(resumeAt)}` : "";
-  els.nextEpisodeBtn.classList.toggle("hidden", !nextEpisode);
-  els.nextEpisodeBtn.onclick = () => nextEpisode && nextEpisode();
-  els.playerHost.innerHTML = "";
-  openModal("playerModal");
 
   if(isYouTube(video)){
     const embed = normalizeYouTube(video);
