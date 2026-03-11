@@ -441,79 +441,13 @@ function destroyPlayer(){
 }
 
 function openPlayer({ contentId, title, meta, video, resumeAt = 0, nextEpisode = null }){
-
   els.playerTitle.textContent = title;
   els.playerMeta.textContent = meta || "";
   els.playerStatus.textContent = resumeAt ? `ממשיך מ־${formatTime(resumeAt)}` : "";
-
   els.nextEpisodeBtn.classList.toggle("hidden", !nextEpisode);
   els.nextEpisodeBtn.onclick = () => nextEpisode && nextEpisode();
-
   els.playerHost.innerHTML = "";
   openModal("playerModal");
-
-  // --------------------
-  // YOUTUBE VIDEO
-  // --------------------
-
-  if(isYouTube(video)){
-
-    const embed = normalizeYouTube(video);
-
-    destroyPlayer();
-
-    els.playerHost.innerHTML = `
-      <iframe
-        width="100%"
-        height="100%"
-        src="${embed}&autoplay=1"
-        frameborder="0"
-        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-        allowfullscreen>
-      </iframe>
-    `;
-
-    // שמירת צפייה בסיסית
-    let watchStart = Date.now();
-
-    state.ytTimer = setInterval(() => {
-
-      const seconds = Math.floor((Date.now() - watchStart) / 1000);
-
-      saveProgress(contentId, seconds, seconds + 1);
-
-    }, 5000);
-
-  }
-
-  // --------------------
-  // MP4 VIDEO
-  // --------------------
-
-  else {
-
-    els.playerHost.innerHTML =
-      `<video id="nativePlayer" controls autoplay src="${esc(video)}"></video>`;
-
-    const v = $("nativePlayer");
-
-    v.addEventListener("loadedmetadata", () => {
-
-      try{ v.currentTime = resumeAt || 0; }catch{}
-
-      saveProgress(contentId, v.currentTime, v.duration);
-
-    });
-
-    v.addEventListener("timeupdate", () => {
-
-      saveProgress(contentId, v.currentTime, v.duration);
-
-    });
-
-  }
-
-}
 
   if(isYouTube(video)){
     const embed = normalizeYouTube(video);
