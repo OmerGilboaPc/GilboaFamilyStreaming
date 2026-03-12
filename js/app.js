@@ -470,16 +470,17 @@ const player = videojs("streamPlayer", {
 });
 
 player.ready(function() {
-    this.hotkeys({
-        seekStep: 10,
-        volumeStep: 0.1,
-        enableModifiersForNumbers: false,
-        alwaysCaptureHotkeys: false,
-        captureDocumentHotkeys: true
-    });
-    
+    if (this.hotkeys) {
+        this.hotkeys({
+            seekStep: 10,
+            volumeStep: 0.1,
+            enableModifiersForNumbers: false,
+            alwaysCaptureHotkeys: false,
+            captureDocumentHotkeys: true
+        });
+    }
     this.addClass('vjs-theme-city');
-}); // <--- תוודא שיש כאן נקודה-פסיק וסוגריים סוגרים!
+});
 
 // השורה הזו מחברת את הנגן לעיצוב הכהה (ה-CSS שהוספנו קודם ב-Header)
 player.addClass('vjs-theme-city');
