@@ -1,18 +1,21 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getDatabase } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  // כאן חייב להיות ה-Config שלך מה-Firebase Console!
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "...",
-  appId: "..."
+  apiKey: "AIzaSyCPDS6U9LokVN-f4uQj9rdaWuCnut72bts",
+  authDomain: "netflixfamilystreaming-b0ca4.firebaseapp.com",
+  databaseURL: "https://netflixfamilystreaming-b0ca4-default-rtdb.firebaseio.com",
+  projectId: "netflixfamilystreaming-b0ca4",
+  storageBucket: "netflixfamilystreaming-b0ca4.firebasestorage.app",
+  messagingSenderId: "116100612969",
+  appId: "1:116100612969:web:29387c89e455e36d8373f8"
 };
 
+
+// אתחול האפליקציה
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getDatabase(app);
