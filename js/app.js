@@ -523,5 +523,4 @@ function extractYoutubeId(url){
   const match = url.match(reg);
 
   return match ? match[1] : url;
-
-});
+}
