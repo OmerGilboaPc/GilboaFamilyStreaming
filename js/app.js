@@ -461,15 +461,26 @@ function openPlayer({ contentId, title, meta, video, resumeAt = 0, nextEpisode =
     </video>
   `;
 
-  const player = videojs("streamPlayer", {
+  // האתחול הקיים שלך
+const player = videojs("streamPlayer", {
     controls: true,
     autoplay: true,
     preload: "auto",
-    fluid: true, // זה כבר היה לך - מעולה, זה דואג לרספונסיביות
-    playbackRates: [0.5, 1, 1.25, 1.5, 2], // מוסיף אפשרות לשנות מהירות צפייה
-    userActions: {
-        hotkeys: true // מאפשר שליטה מהמקלדת (חצים, רווח)
-    }
+    fluid: true
+});
+
+// הוספת השליטה במקלדת (החלק החדש)
+player.ready(function() {
+    this.hotkeys({
+        seekStep: 10,
+        volumeStep: 0.1,
+        enableModifiersForNumbers: false,
+        alwaysCaptureHotkeys: false, // מומלץ לשנות ל-false כדי שלא יפריע אם יש לך תיבת חיפוש באתר
+        captureDocumentHotkeys: true
+    });
+
+    // הוספת העיצוב המודרני
+    this.addClass('vjs-theme-city');
 });
 
 // השורה הזו מחברת את הנגן לעיצוב הכהה (ה-CSS שהוספנו קודם ב-Header)
