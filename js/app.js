@@ -2,72 +2,62 @@ import { auth, db, ADMIN_EMAIL } from "./firebase.js";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { ref, get, set, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-// --- State ---
 const state = { 
-    user: null, isAdmin: false, authMode: "login", 
-    profiles: {}, currentProfileId: null, 
-    movies: {}, series: {}, requests: {}, 
-    ratings: {}, progress: {}, ytPlayer: null, ytTimer: null 
+    user: null, isAdmin: false, profiles: {}, currentProfileId: null, 
+    movies: {}, series: {}, requests: {} 
 };
 
 const $ = (id) => document.getElementById(id);
 
-// --- UI Elements (מבטיח שכל האלמנטים מה-HTML ממופים) ---
+// מיפוי אלמנטים בדיוק לפי ה-HTML ששלחת
 const els = {
     splash: $("splash"), authScreen: $("authScreen"), profilesScreen: $("profilesScreen"), appScreen: $("appScreen"),
-    authEmail: $("authEmail"), authPassword: $("authPassword"), authActionBtn: $("authActionBtn"), authError: $("authError"),
+    authEmail: $("authEmail"), authPassword: $("authPassword"), authActionBtn: $("authActionBtn"),
     profilesGrid: $("profilesGrid"), activeProfileLabel: $("activeProfileLabel"),
-    adminBtn: $("adminBtn"), requestsBtn: $("requestsBtn"), heroRequestsBtn: $("heroRequestsBtn"),
-    randomBtn: $("randomBtn"), heroRandomBtn: $("heroRandomBtn"), signOutBtn: $("signOutBtn"),
-    searchInput: $("searchInput"), continueGrid: $("continueGrid"), 
     moviesGrid: $("moviesGrid"), seriesGrid: $("seriesGrid"),
-    detailsBody: $("detailsBody"), playerHost: $("playerHost"), playerTitle: $("playerTitle"),
-    requestTitle: $("requestTitle"), requestNote: $("requestNote"), requestsList: $("requestsList")
+    requestsBtn: $("requestsBtn"), heroRequestsBtn: $("heroRequestsBtn"),
+    requestsList: $("requestsList"), requestTitle: $("requestTitle"), requestNote: $("requestNote"),
+    sendRequestBtn: $("sendRequestBtn"), searchInput: $("searchInput"),
+    randomBtn: $("randomBtn"), heroRandomBtn: $("heroRandomBtn"),
+    signOutBtn: $("signOutBtn"), detailsBody: $("detailsBody"),
+    playerHost: $("playerHost"), playerTitle: $("playerTitle"), adminBtn: $("adminBtn")
 };
 
 const esc = (v) => String(v ?? "").replace(/[&<>"]/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s]));
 
-// --- פונקציות ניווט (חובה שיהיו ב-window) ---
+// --- פונקציות תצוגה ---
 window.showOnly = (which) => {
-    if(els.authScreen) els.authScreen.classList.toggle("hidden", which !== "auth");
-    if(els.profilesScreen) els.profilesScreen.classList.toggle("hidden", which !== "profiles");
-    if(els.appScreen) els.appScreen.classList.toggle("hidden", which !== "app");
+    els.authScreen?.classList.toggle("hidden", which !== "auth");
+    els.profilesScreen?.classList.toggle("hidden", which !== "profiles");
+    els.appScreen?.classList.toggle("hidden", which !== "app");
 };
 
-window.openModal = (id) => {
-    const m = $(id);
-    if(m) m.classList.remove("hidden");
-};
-
+window.openModal = (id) => $(id)?.classList.remove("hidden");
 window.closeModal = (id) => {
-    const m = $(id);
-    if(m) {
-        m.classList.add("hidden");
-        if(id === "playerModal") window.destroyPlayer();
+    $(id)?.classList.add("hidden");
+    if (id === "playerModal") {
+        const p = videojs.getPlayer("mainPlayer");
+        if (p) p.dispose();
     }
 };
 
-// --- Auth & Data Loading ---
+// --- טעינת נתונים (כאן יחזרו הסדרות שלך) ---
 onAuthStateChanged(auth, async (user) => {
     state.user = user;
     state.isAdmin = !!(user && user.email === ADMIN_EMAIL);
     if (els.adminBtn) els.adminBtn.classList.toggle("hidden", !state.isAdmin);
 
-    if (!user) {
-        window.showOnly("auth");
-        return;
-    }
+    if (!user) { window.showOnly("auth"); return; }
 
-    // טעינת כל הנתונים בזמן אמת (זה יחזיר את הסדרות והסרטים)
     onValue(ref(db, `users/${user.uid}/profiles`), s => { state.profiles = s.val() || {}; renderProfiles(); });
-    onValue(ref(db, "movies"), s => { state.movies = s.val() || {}; renderAll(); });
-    onValue(ref(db, "series"), s => { state.series = s.val() || {}; renderAll(); });
+    onValue(ref(db, "movies"), s => { state.movies = s.val() || {}; renderContent(); });
+    onValue(ref(db, "series"), s => { state.series = s.val() || {}; renderContent(); });
     onValue(ref(db, "requests"), s => { state.requests = s.val() || {}; renderRequests(); });
 
     window.showOnly("profiles");
 });
 
-// --- Profiles ---
+// --- רינדור ---
 function renderProfiles() {
     if (!els.profilesGrid) return;
     els.profilesGrid.innerHTML = Object.entries(state.profiles).map(([id, p]) => `
@@ -82,16 +72,13 @@ window.enterApp = (profileId) => {
     state.currentProfileId = profileId;
     if (els.activeProfileLabel) els.activeProfileLabel.textContent = state.profiles[profileId]?.name || "פרופיל";
     window.showOnly("app");
-    renderAll();
 };
 
-// --- Content Rendering ---
-function renderAll() {
+function renderContent() {
     const query = (els.searchInput?.value || "").toLowerCase();
-    
     const createCard = (type, id, item) => `
         <div class="card" onclick="openDetails('${type}', '${id}')">
-            ${state.isAdmin ? `<button class="admin-del" onclick="event.stopPropagation(); deleteItem('${type === 'movie' ? 'movies' : 'series'}','${id}')" style="position:absolute; top:5px; right:5px; background:red; border:none; color:white; border-radius:50%; width:25px; height:25px; cursor:pointer; z-index:20;">×</button>` : ''}
+            ${state.isAdmin ? `<button class="admin-del" onclick="event.stopPropagation(); deleteItem('${type === 'movie' ? 'movies' : 'series'}','${id}')">×</button>` : ''}
             <img class="poster" src="${esc(item.poster)}">
             <div class="card-title">${esc(item.title)}</div>
         </div>
@@ -109,7 +96,7 @@ function renderAll() {
     }
 }
 
-// --- Player & Details ---
+// --- פרטים ונגן ---
 window.openDetails = (type, id) => {
     const item = type === "movie" ? state.movies[id] : state.series[id];
     if (els.detailsBody) {
@@ -132,65 +119,55 @@ window.playContent = (type, id) => {
     }
 };
 
-window.destroyPlayer = () => {
-    const p = videojs.getPlayer("mainPlayer");
-    if (p) p.dispose();
-    if (els.playerHost) els.playerHost.innerHTML = "";
-};
-
-// --- Requests ---
-window.showRequests = () => {
-    renderRequests();
-    window.openModal("requestsModal");
-};
-
+// --- בקשות ---
 function renderRequests() {
     if (!els.requestsList) return;
     els.requestsList.innerHTML = Object.entries(state.requests).map(([id, r]) => `
-        <div class="request-card" style="display:flex; justify-content:space-between; align-items:center;">
-            <div>
-                <strong>${esc(r.title)}</strong>
-                <div class="small muted">${esc(r.profileName)}</div>
-            </div>
-            ${state.isAdmin ? `<button onclick="deleteItem('requests','${id}')" style="background:none; border:none; cursor:pointer;">🗑️</button>` : ''}
+        <div class="request-card">
+            <strong>${esc(r.title)}</strong>
+            <div class="small muted">${esc(r.profileName)}</div>
+            ${state.isAdmin ? `<button onclick="deleteItem('requests','${id}')">🗑️</button>` : ''}
         </div>
     `).join("") || "אין בקשות";
 }
-
-window.sendRequest = async () => {
-    const title = els.requestTitle?.value.trim();
-    if (!title) return alert("הכנס שם!");
-    await push(ref(db, "requests"), {
-        title, profileName: state.profiles[state.currentProfileId]?.name || "אורח",
-        createdAt: Date.now(), status: "new"
-    });
-    els.requestTitle.value = "";
-    alert("נשלח!");
-};
 
 window.deleteItem = async (path, id) => {
     if (confirm("למחוק?")) await remove(ref(db, `${path}/${id}`));
 };
 
-// --- Events ---
+// --- חיבור אירועים לכפתורי ה-HTML (Event Listeners) ---
 if (els.authActionBtn) {
     els.authActionBtn.onclick = async () => {
-        try {
-            await signInWithEmailAndPassword(auth, els.authEmail.value, els.authPassword.value);
-        } catch (e) { alert(e.message); }
+        const email = els.authEmail.value.trim(), pass = els.authPassword.value.trim();
+        try { await signInWithEmailAndPassword(auth, email, pass); } catch (e) { alert(e.message); }
+    };
+}
+
+if (els.requestsBtn) els.requestsBtn.onclick = () => { renderRequests(); window.openModal("requestsModal"); };
+if (els.heroRequestsBtn) els.heroRequestsBtn.onclick = () => { renderRequests(); window.openModal("requestsModal"); };
+if (els.sendRequestBtn) {
+    els.sendRequestBtn.onclick = async () => {
+        const title = els.requestTitle.value.trim();
+        if (!title) return;
+        await push(ref(db, "requests"), { title, profileName: state.profiles[state.currentProfileId]?.name || "אורח", createdAt: Date.now() });
+        els.requestTitle.value = "";
+        alert("נשלח!");
     };
 }
 
 if (els.signOutBtn) els.signOutBtn.onclick = () => signOut(auth);
-if (els.requestsBtn) els.requestsBtn.onclick = window.showRequests;
-if (els.searchInput) els.searchInput.oninput = () => renderAll();
+if (els.searchInput) els.searchInput.oninput = () => renderContent();
 
-// חשיפה ל-window (קריטי לכפתורים ב-HTML)
+// חשיפה ל-window עבור onclick בתוך ה-HTML (כרטיסיות וסגירת מודאלים)
 window.enterApp = window.enterApp;
 window.openDetails = window.openDetails;
 window.playContent = window.playContent;
 window.deleteItem = window.deleteItem;
-window.showRequests = window.showRequests;
-window.sendRequest = window.sendRequest;
+window.closeModal = window.closeModal;
 
-setTimeout(() => els.splash?.classList.add("hidden"), 2100);
+// סגירת מודאלים בלחיצה על הרקע (תואם ל-data-close ב-HTML שלך)
+document.addEventListener("click", (e) => {
+    if (e.target.dataset.close) window.closeModal(e.target.dataset.close);
+});
+
+setTimeout(() => els.splash?.classList.add("hidden"), 2000);
