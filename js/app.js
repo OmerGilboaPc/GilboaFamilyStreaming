@@ -470,7 +470,7 @@ const player = videojs("streamPlayer", {
 });
 
 player.ready(function() {
-    if (this.hotkeys) {
+    if (typeof this.hotkeys === 'function') {
         this.hotkeys({
             seekStep: 10,
             volumeStep: 0.1,
