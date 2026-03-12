@@ -2,61 +2,72 @@ import { auth, db, ADMIN_EMAIL } from "./firebase.js";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { ref, get, set, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
+// --- State ---
 const state = { 
-    user: null, isAdmin: false, profiles: {}, currentProfileId: null, 
-    movies: {}, series: {}, requests: {} 
+    user: null, isAdmin: false, authMode: "login", 
+    profiles: {}, currentProfileId: null, 
+    movies: {}, series: {}, requests: {}, 
+    ratings: {}, progress: {}, ytPlayer: null, ytTimer: null 
 };
 
 const $ = (id) => document.getElementById(id);
 
-// מיפוי אלמנטים לפי ה-HTML שלך
+// --- UI Elements (מבטיח שכל האלמנטים מה-HTML ממופים) ---
 const els = {
     splash: $("splash"), authScreen: $("authScreen"), profilesScreen: $("profilesScreen"), appScreen: $("appScreen"),
-    authEmail: $("authEmail"), authPassword: $("authPassword"), authActionBtn: $("authActionBtn"),
+    authEmail: $("authEmail"), authPassword: $("authPassword"), authActionBtn: $("authActionBtn"), authError: $("authError"),
     profilesGrid: $("profilesGrid"), activeProfileLabel: $("activeProfileLabel"),
+    adminBtn: $("adminBtn"), requestsBtn: $("requestsBtn"), heroRequestsBtn: $("heroRequestsBtn"),
+    randomBtn: $("randomBtn"), heroRandomBtn: $("heroRandomBtn"), signOutBtn: $("signOutBtn"),
+    searchInput: $("searchInput"), continueGrid: $("continueGrid"), 
     moviesGrid: $("moviesGrid"), seriesGrid: $("seriesGrid"),
-    requestsBtn: $("requestsBtn"), requestsList: $("requestsList"),
-    requestTitle: $("requestTitle"), searchInput: $("searchInput")
+    detailsBody: $("detailsBody"), playerHost: $("playerHost"), playerTitle: $("playerTitle"),
+    requestTitle: $("requestTitle"), requestNote: $("requestNote"), requestsList: $("requestsList")
 };
 
 const esc = (v) => String(v ?? "").replace(/[&<>"]/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s]));
 
-// --- פונקציות תצוגה ---
+// --- פונקציות ניווט (חובה שיהיו ב-window) ---
 window.showOnly = (which) => {
-    els.authScreen?.classList.toggle("hidden", which !== "auth");
-    els.profilesScreen?.classList.toggle("hidden", which !== "profiles");
-    els.appScreen?.classList.toggle("hidden", which !== "app");
+    if(els.authScreen) els.authScreen.classList.toggle("hidden", which !== "auth");
+    if(els.profilesScreen) els.profilesScreen.classList.toggle("hidden", which !== "profiles");
+    if(els.appScreen) els.appScreen.classList.toggle("hidden", which !== "app");
 };
 
-window.openModal = (id) => $(id)?.classList.remove("hidden");
+window.openModal = (id) => {
+    const m = $(id);
+    if(m) m.classList.remove("hidden");
+};
+
 window.closeModal = (id) => {
-    $(id)?.classList.add("hidden");
-    if (id === "playerModal") {
-        const p = videojs.getPlayer("mainPlayer");
-        if (p) p.dispose();
+    const m = $(id);
+    if(m) {
+        m.classList.add("hidden");
+        if(id === "playerModal") window.destroyPlayer();
     }
 };
 
-// --- טעינת נתונים (כדי שהעונה שהעלית תחזור להופיע) ---
+// --- Auth & Data Loading ---
 onAuthStateChanged(auth, async (user) => {
     state.user = user;
     state.isAdmin = !!(user && user.email === ADMIN_EMAIL);
-    
+    if (els.adminBtn) els.adminBtn.classList.toggle("hidden", !state.isAdmin);
+
     if (!user) {
         window.showOnly("auth");
         return;
     }
 
-    // מאזין לשינויים ב-Database בזמן אמת
+    // טעינת כל הנתונים בזמן אמת (זה יחזיר את הסדרות והסרטים)
     onValue(ref(db, `users/${user.uid}/profiles`), s => { state.profiles = s.val() || {}; renderProfiles(); });
-    onValue(ref(db, "movies"), s => { state.movies = s.val() || {}; renderContent(); });
-    onValue(ref(db, "series"), s => { state.series = s.val() || {}; renderContent(); });
+    onValue(ref(db, "movies"), s => { state.movies = s.val() || {}; renderAll(); });
+    onValue(ref(db, "series"), s => { state.series = s.val() || {}; renderAll(); });
     onValue(ref(db, "requests"), s => { state.requests = s.val() || {}; renderRequests(); });
 
     window.showOnly("profiles");
 });
 
-// --- רינדור (Rendering) ---
+// --- Profiles ---
 function renderProfiles() {
     if (!els.profilesGrid) return;
     els.profilesGrid.innerHTML = Object.entries(state.profiles).map(([id, p]) => `
@@ -71,39 +82,63 @@ window.enterApp = (profileId) => {
     state.currentProfileId = profileId;
     if (els.activeProfileLabel) els.activeProfileLabel.textContent = state.profiles[profileId]?.name || "פרופיל";
     window.showOnly("app");
+    renderAll();
 };
 
-function renderContent() {
+// --- Content Rendering ---
+function renderAll() {
     const query = (els.searchInput?.value || "").toLowerCase();
     
-    // רינדור סרטים
+    const createCard = (type, id, item) => `
+        <div class="card" onclick="openDetails('${type}', '${id}')">
+            ${state.isAdmin ? `<button class="admin-del" onclick="event.stopPropagation(); deleteItem('${type === 'movie' ? 'movies' : 'series'}','${id}')" style="position:absolute; top:5px; right:5px; background:red; border:none; color:white; border-radius:50%; width:25px; height:25px; cursor:pointer; z-index:20;">×</button>` : ''}
+            <img class="poster" src="${esc(item.poster)}">
+            <div class="card-title">${esc(item.title)}</div>
+        </div>
+    `;
+
     if (els.moviesGrid) {
         els.moviesGrid.innerHTML = Object.entries(state.movies)
             .filter(([_, m]) => m.title.toLowerCase().includes(query))
-            .map(([id, m]) => `
-                <div class="card" onclick="openDetails('movie', '${id}')">
-                    ${state.isAdmin ? `<button class="admin-del" onclick="event.stopPropagation(); deleteItem('movies','${id}')">×</button>` : ''}
-                    <img class="poster" src="${esc(m.poster)}">
-                    <div class="card-title">${esc(m.title)}</div>
-                </div>
-            `).join("");
+            .map(([id, m]) => createCard('movie', id, m)).join("");
     }
-
-    // רינדור סדרות (כאן תופיע העונה שהעלית)
     if (els.seriesGrid) {
         els.seriesGrid.innerHTML = Object.entries(state.series)
             .filter(([_, s]) => s.title.toLowerCase().includes(query))
-            .map(([id, s]) => `
-                <div class="card" onclick="openDetails('series', '${id}')">
-                    ${state.isAdmin ? `<button class="admin-del" onclick="event.stopPropagation(); deleteItem('series','${id}')">×</button>` : ''}
-                    <img class="poster" src="${esc(s.poster)}">
-                    <div class="card-title">${esc(s.title)}</div>
-                </div>
-            `).join("");
+            .map(([id, s]) => createCard('series', id, s)).join("");
     }
 }
 
-// --- ניהול תוכן ובקשות ---
+// --- Player & Details ---
+window.openDetails = (type, id) => {
+    const item = type === "movie" ? state.movies[id] : state.series[id];
+    if (els.detailsBody) {
+        els.detailsBody.innerHTML = `
+            <h2>${esc(item.title)}</h2>
+            <p>${esc(item.description || "אין תיאור")}</p>
+            <button class="btn btn-primary" onclick="playContent('${type}', '${id}')">▶ נגן</button>
+        `;
+    }
+    window.openModal("detailsModal");
+};
+
+window.playContent = (type, id) => {
+    const item = type === "movie" ? state.movies[id] : state.series[id];
+    if (els.playerTitle) els.playerTitle.textContent = item.title;
+    window.openModal("playerModal");
+    if (els.playerHost) {
+        els.playerHost.innerHTML = `<video id="mainPlayer" class="video-js vjs-theme-city" controls autoplay width="100%"><source src="${item.video}" type="video/mp4"></video>`;
+        videojs("mainPlayer", { fluid: true });
+    }
+};
+
+window.destroyPlayer = () => {
+    const p = videojs.getPlayer("mainPlayer");
+    if (p) p.dispose();
+    if (els.playerHost) els.playerHost.innerHTML = "";
+};
+
+// --- Requests ---
 window.showRequests = () => {
     renderRequests();
     window.openModal("requestsModal");
@@ -112,33 +147,50 @@ window.showRequests = () => {
 function renderRequests() {
     if (!els.requestsList) return;
     els.requestsList.innerHTML = Object.entries(state.requests).map(([id, r]) => `
-        <div class="request-card">
+        <div class="request-card" style="display:flex; justify-content:space-between; align-items:center;">
             <div>
                 <strong>${esc(r.title)}</strong>
                 <div class="small muted">${esc(r.profileName)}</div>
             </div>
-            ${state.isAdmin ? `<button onclick="deleteItem('requests','${id}')">🗑️</button>` : ''}
+            ${state.isAdmin ? `<button onclick="deleteItem('requests','${id}')" style="background:none; border:none; cursor:pointer;">🗑️</button>` : ''}
         </div>
-    `).join("");
+    `).join("") || "אין בקשות";
 }
 
-window.deleteItem = async (path, id) => {
-    if (confirm("למחוק לצמיתות?")) await remove(ref(db, `${path}/${id}`));
+window.sendRequest = async () => {
+    const title = els.requestTitle?.value.trim();
+    if (!title) return alert("הכנס שם!");
+    await push(ref(db, "requests"), {
+        title, profileName: state.profiles[state.currentProfileId]?.name || "אורח",
+        createdAt: Date.now(), status: "new"
+    });
+    els.requestTitle.value = "";
+    alert("נשלח!");
 };
 
-// --- אירועים ---
+window.deleteItem = async (path, id) => {
+    if (confirm("למחוק?")) await remove(ref(db, `${path}/${id}`));
+};
+
+// --- Events ---
 if (els.authActionBtn) {
     els.authActionBtn.onclick = async () => {
         try {
             await signInWithEmailAndPassword(auth, els.authEmail.value, els.authPassword.value);
-        } catch (e) { alert("שגיאה: " + e.message); }
+        } catch (e) { alert(e.message); }
     };
 }
 
+if (els.signOutBtn) els.signOutBtn.onclick = () => signOut(auth);
 if (els.requestsBtn) els.requestsBtn.onclick = window.showRequests;
+if (els.searchInput) els.searchInput.oninput = () => renderAll();
 
-// חשוב: חשיפת פונקציות ל-window כדי שה-HTML יזהה אותן
+// חשיפה ל-window (קריטי לכפתורים ב-HTML)
 window.enterApp = window.enterApp;
+window.openDetails = window.openDetails;
+window.playContent = window.playContent;
 window.deleteItem = window.deleteItem;
+window.showRequests = window.showRequests;
+window.sendRequest = window.sendRequest;
 
-setTimeout(() => els.splash?.classList.add("hidden"), 2000);
+setTimeout(() => els.splash?.classList.add("hidden"), 2100);
