@@ -469,19 +469,17 @@ const player = videojs("streamPlayer", {
     fluid: true
 });
 
-// הוספת השליטה במקלדת (החלק החדש)
 player.ready(function() {
     this.hotkeys({
         seekStep: 10,
         volumeStep: 0.1,
         enableModifiersForNumbers: false,
-        alwaysCaptureHotkeys: false, // מומלץ לשנות ל-false כדי שלא יפריע אם יש לך תיבת חיפוש באתר
+        alwaysCaptureHotkeys: false,
         captureDocumentHotkeys: true
     });
-
-    // הוספת העיצוב המודרני
+    
     this.addClass('vjs-theme-city');
-});
+}); // <--- תוודא שיש כאן נקודה-פסיק וסוגריים סוגרים!
 
 // השורה הזו מחברת את הנגן לעיצוב הכהה (ה-CSS שהוספנו קודם ב-Header)
 player.addClass('vjs-theme-city');
