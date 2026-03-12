@@ -465,10 +465,15 @@ function openPlayer({ contentId, title, meta, video, resumeAt = 0, nextEpisode =
     controls: true,
     autoplay: true,
     preload: "auto",
-    fluid: true
-  });
+    fluid: true, // זה כבר היה לך - מעולה, זה דואג לרספונסיביות
+    playbackRates: [0.5, 1, 1.25, 1.5, 2], // מוסיף אפשרות לשנות מהירות צפייה
+    userActions: {
+        hotkeys: true // מאפשר שליטה מהמקלדת (חצים, רווח)
+    }
+});
 
-}
+// השורה הזו מחברת את הנגן לעיצוב הכהה (ה-CSS שהוספנו קודם ב-Header)
+player.addClass('vjs-theme-city');
 
 function showRequests(){ renderRequests(); openModal("requestsModal"); }
 function renderRequests(){
