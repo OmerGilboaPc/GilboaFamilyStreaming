@@ -485,7 +485,7 @@ player.ready(function() {
 // השורה הזו מחברת את הנגן לעיצוב הכהה (ה-CSS שהוספנו קודם ב-Header)
 player.addClass('vjs-theme-city');
 
-function showRequests(){ renderRequests(); openModal("requestsModal"); }
+window.showRequests = function() { renderRequests(); openModal("requestsModal"); };
 function renderRequests(){
   const list = Object.entries(state.requests).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
   els.requestsList.innerHTML = list.map(([id, r]) => `
