@@ -406,6 +406,7 @@ function getNextEpisode(seriesId, season, episode){
   const idx = list.findIndex(ep => Number(ep.season)===Number(season) && Number(ep.episode)===Number(episode));
   return idx >= 0 ? list[idx+1] || null : null;
 }
+
 function playEpisode(seriesId, season, episode){
   const ep = state.series[seriesId]?.seasons?.[season]?.episodes?.[episode];
   const series = state.series[seriesId];
@@ -441,10 +442,8 @@ function destroyPlayer(){
 }
 
 function openPlayer({ contentId, title, meta, video, resumeAt = 0, nextEpisode = null }){
-
   els.playerTitle.textContent = title;
   els.playerMeta.textContent = meta || "";
-
   openModal("playerModal");
 
   els.playerHost.innerHTML = `
@@ -455,21 +454,19 @@ function openPlayer({ contentId, title, meta, video, resumeAt = 0, nextEpisode =
       preload="auto"
       width="100%"
       height="auto"
-      data-setup='{}'
     >
       <source src="${video}" type="video/mp4">
     </video>
   `;
 
-  // האתחול הקיים שלך
-const player = videojs("streamPlayer", {
+  const player = videojs("streamPlayer", {
     controls: true,
     autoplay: true,
     preload: "auto",
     fluid: true
-});
+  });
 
-player.ready(function() {
+  player.ready(function() {
     if (typeof this.hotkeys === 'function') {
         this.hotkeys({
             seekStep: 10,
@@ -480,12 +477,16 @@ player.ready(function() {
         });
     }
     this.addClass('vjs-theme-city');
-});
+    if (resumeAt > 0) {
+      this.currentTime(resumeAt);
+    }
+  });
 
-// השורה הזו מחברת את הנגן לעיצוב הכהה (ה-CSS שהוספנו קודם ב-Header)
-player.addClass('vjs-theme-city');
+  player.on('timeupdate', () => {
+    saveProgress(contentId, player.currentTime(), player.duration());
+  });
+}
 
-window.showRequests = function() { renderRequests(); openModal("requestsModal"); };
 function renderRequests(){
   const list = Object.entries(state.requests).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
   els.requestsList.innerHTML = list.map(([id, r]) => `
@@ -499,6 +500,7 @@ function renderRequests(){
     </div>
   `).join("") || '<div class="muted">אין בקשות עדיין</div>';
 }
+
 async function sendRequest(){
   const title = els.requestTitle.value.trim();
   const note = els.requestNote.value.trim();
@@ -508,6 +510,7 @@ async function sendRequest(){
   els.requestTitle.value = ""; els.requestNote.value = "";
   toast("הבקשה נשלחה");
 }
+
 function randomPick(){
   const movies = Object.entries(state.movies);
   if(!movies.length) return toast("אין סרטים כרגע");
@@ -515,13 +518,14 @@ function randomPick(){
   openDetails("movie", id);
 }
 
-function extractYoutubeId(url){
-
-  const reg =
-  /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/;
-
+function extractYouTubeId(url){
+  const reg = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/;
   const match = url.match(reg);
-
   return match ? match[1] : url;
 }
-}
+
+// חשיפת פונקציות ל-HTML (קריטי עבור type="module")
+Object.assign(window, { 
+  showOnly, openModal, closeModal, showRequests, renderRequests, 
+  sendRequest, randomPick, openDetails, playEpisode 
+});
