@@ -525,4 +525,3 @@ function extractYoutubeId(url){
   return match ? match[1] : url;
 }
 }
-}
