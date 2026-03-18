@@ -536,20 +536,31 @@ function filterMedia() {
 
     if (matches.length > 0) {
         resultsContainer.innerHTML = matches.map(item => `
-            <div class="search-result-item" onclick="showDetails('${item.type}', '${item.id}')">
-                <img src="${item.poster}" alt="">
-                <div>
+            <div class="search-result-item" data-type="${item.type}" data-id="${item.id}" style="cursor: pointer;">
+                <img src="${item.poster}" alt="" style="pointer-events: none;">
+                <div style="pointer-events: none;">
                     <div class="title">${item.title}</div>
                     <div class="type">${item.type === 'movie' ? '🎬 סרט' : '📺 סדרה'}</div>
                 </div>
             </div>
         `).join('');
         resultsContainer.classList.remove('hidden');
-    } else {
-        resultsContainer.innerHTML = '<div style="padding:15px; text-align:center; color:#888;">לא נמצאו תוצאות</div>';
-        resultsContainer.classList.remove('hidden');
+
+        // הוספת פקודת לחיצה לכל תוצאה ברשימה
+        resultsContainer.querySelectorAll('.search-result-item').forEach(el => {
+            el.addEventListener('click', () => {
+                const type = el.getAttribute('data-type');
+                const id = el.getAttribute('data-id');
+                
+                // הפעלת הפונקציה הקיימת באתר שלך לפתיחת פרטים
+                showDetails(type, id);
+                
+                // סגירת רשימת החיפוש אחרי הלחיצה
+                resultsContainer.classList.add('hidden');
+                document.getElementById('searchInput').value = '';
+            });
+        });
     }
-}
 
 // מאזין להקלדה בתיבת החיפוש
 document.getElementById('searchInput').addEventListener('input', filterMedia);
