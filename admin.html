@@ -76,17 +76,6 @@
         </div>
       </section>
 
-      <div class="admin-grid"> <section class="admin-section glass" style="grid-column: 1 / -1; margin-top: 20px; padding: 20px;">
-        <h3>📂 ניהול אוספים</h3>
-        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-            <input id="newColName" type="text" placeholder="שם האוסף..." class="search-input" style="flex:1">
-            <button id="addColBtn" class="btn btn-primary">צור אוסף</button>
-        </div>
-        <div id="adminCollectionsList" class="stack"></div>
-    </section>
-
-</div>
-      
       <section class="glass admin-card admin-card-full">
         <h3>👥 משתמשים ופרופילים</h3>
         <div id="adminUsersList" class="stack"></div>
@@ -94,58 +83,6 @@
     </div>
   </div>
 
-  <script type="module">
-    // ייבוא הכלים הדרושים מהקובץ הקיים שלך
-    import { db, ref, push, set, onValue, remove } from './js/admin.js';
-
-    // 1. הפעלת כפתור "צור אוסף"
-    const addColBtn = document.getElementById('addColBtn');
-    if (addColBtn) {
-      addColBtn.onclick = async () => {
-        const input = document.getElementById('newColName');
-        const name = input.value.trim();
-
-        if (!name) {
-          alert("נא להזין שם לאוסף!");
-          return;
-        }
-
-        try {
-          const newColRef = push(ref(db, "collections"));
-          await set(newColRef, {
-            title: name,
-            items: [] // מתחיל כאוסף ריק
-          });
-          input.value = ""; // ניקוי התיבה
-        } catch (e) {
-          console.error("Error:", e);
-        }
-      };
-    }
-
-    // 2. הצגת האוספים ברשימה (מתחת לכפתור)
-    onValue(ref(db, "collections"), (snapshot) => {
-      const data = snapshot.val() || {};
-      const list = document.getElementById('adminCollectionsList');
-      if (!list) return;
-
-      list.innerHTML = Object.entries(data).map(([id, col]) => `
-        <div class="admin-item glass" style="margin-bottom:10px; padding:15px; display:flex; justify-content:space-between; align-items:center; border-radius:10px;">
-          <div>
-            <strong style="font-size:1.1rem;">${col.title}</strong>
-            <div class="small muted">${(col.items || []).length} פריטים</div>
-          </div>
-          <div style="display:flex; gap:10px;">
-            <button class="btn btn-secondary" onclick="window.deleteCol('${id}')" style="background:rgba(255,0,0,0.2)">🗑 מחק</button>
-          </div>
-        </div>
-      `).join("") || '<div class="muted">אין אוספים עדיין.</div>';
-    });
-
-    // פונקציית מחיקה
-    window.deleteCol = (id) => {
-      if (confirm("למחוק את האוסף?")) {
-        remove(ref(db, `collections/${id}`));
-      }
-    };
-  </script>
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>
