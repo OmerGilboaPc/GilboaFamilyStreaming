@@ -511,15 +511,30 @@ function extractYoutubeId(url){
 
 }
 
-// --- פונקציונליות חיפוש צף סופית ---
+// הופך את הפונקציה לזמינה לכל האתר
+window.handleSearchClick = function(type, id) {
+    const resultsContainer = document.getElementById('searchResults');
+    const searchInput = document.getElementById('searchInput');
+    
+    if (resultsContainer) resultsContainer.classList.add('hidden');
+    if (searchInput) searchInput.value = '';
+    
+    // שינוי ל-openDetails כי זו הפונקציה שקיימת אצלך בקוד (שורה 500)
+    if (typeof openDetails === 'function') {
+        openDetails(type, id);
+    } else {
+        console.log("מנסה לפתוח עם:", type, id);
+        // ליתר ביטחון אם השם שונה
+        if (typeof showDetails === 'function') showDetails(type, id);
+    }
+};
+
 function filterMedia() {
     const searchInput = document.getElementById('searchInput');
     const resultsContainer = document.getElementById('searchResults');
-    
     if (!searchInput || !resultsContainer) return;
 
     const searchTerm = searchInput.value.toLowerCase().trim();
-    
     if (!searchTerm) {
         resultsContainer.innerHTML = '';
         resultsContainer.classList.add('hidden');
@@ -538,10 +553,10 @@ function filterMedia() {
     if (matches.length > 0) {
         resultsContainer.innerHTML = matches.map(item => `
             <div class="search-result-item" 
-                 onclick="handleSearchClick('${item.type}', '${item.id}')" 
+                 onclick="window.handleSearchClick('${item.type}', '${item.id}')" 
                  style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                <img src="${item.poster}" alt="" style="width: 40px; height: 55px; object-fit: cover; border-radius: 4px;">
-                <div>
+                <img src="${item.poster}" alt="" style="width: 40px; height: 55px; object-fit: cover; border-radius: 4px; pointer-events: none;">
+                <div style="pointer-events: none;">
                     <div class="title" style="font-weight: bold; color: white; font-size: 14px;">${item.title}</div>
                     <div class="type" style="font-size: 11px; color: #aaa;">${item.type === 'movie' ? '🎬 סרט' : '📺 סדרה'}</div>
                 </div>
@@ -554,28 +569,12 @@ function filterMedia() {
     }
 }
 
-// פונקציית עזר לטיפול בלחיצה - שים אותה מחוץ ל-filterMedia
-function handleSearchClick(type, id) {
-    const resultsContainer = document.getElementById('searchResults');
-    const searchInput = document.getElementById('searchInput');
-    
-    // 1. סגירת הרשימה וניקוי
-    resultsContainer.classList.add('hidden');
-    searchInput.value = '';
-    
-    // 2. הפעלת הפונקציה המקורית של האתר שלך
-    if (typeof showDetails === 'function') {
-        showDetails(type, id);
-    } else {
-        console.error("פונקציית showDetails לא נמצאה!");
-    }
-}
-
-// חיבור האירועים
+// מאזין להקלדה
 document.addEventListener('input', (e) => {
     if (e.target.id === 'searchInput') filterMedia();
 });
 
+// סגירה בלחיצה בחוץ
 document.addEventListener('click', (e) => {
     const searchRes = document.getElementById('searchResults');
     if (searchRes && !e.target.closest('.top-actions')) {
