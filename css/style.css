@@ -103,3 +103,34 @@ textarea{min-height:100px;resize:vertical}
 .admin-columns{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 @media (max-width:920px){.hero,.details-layout,.admin-grid,.admin-columns{grid-template-columns:1fr}.topbar{flex-direction:column;align-items:flex-start}.top-actions{justify-content:flex-start}}
 @media (max-width:640px){.container{padding:14px}.topbar{padding:12px}.content-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.content-grid-wide{grid-template-columns:1fr}.player-host iframe,.player-host video{height:260px}.details-title{font-size:30px}}
+/* --- התאמה למובייל --- */ @media (max-width: 768px) {
+    /* הופך את הגריד מ-5 עמודות ל-2 עמודות בלבד */
+    .media-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px;
+        padding: 10px;
+    }
+
+    /* התאמת הכותרת הראשית (Hero) */
+    .hero-title {
+        font-size: 2.2rem !important;
+        text-align: center;
+    }
+
+    /* סידור כפתורי הניווט שיהיו אחד מתחת לשני אם אין מקום */
+    .nav-buttons {
+        justify-content: center;
+        gap: 8px;
+    }
+
+    /* התאמת הלוגו והחיפוש בראש העמוד */
+    .header-content {
+        flex-direction: column;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .search-container {
+        width: 100%;
+    }
+}
