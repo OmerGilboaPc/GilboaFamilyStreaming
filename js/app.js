@@ -510,3 +510,30 @@ function extractYoutubeId(url){
   return match ? match[1] : url;
 
 }
+
+// --- שורה 499: פונקציונליות חיפוש ---
+
+function filterMedia() {
+    // שלב א': הבנת מה המשתמש הקליד
+    const searchTerm = els.searchInput.value.toLowerCase().trim();
+    
+    // שלב ב': תפיסת כל כרטיסי הסרטים והסדרות שמוצגים כרגע
+    const mediaCards = document.querySelectorAll('.media-card');
+
+    mediaCards.forEach(card => {
+        // שלב ג': חילוץ שם הסרט מתוך הכרטיס
+        const title = card.querySelector('h3').innerText.toLowerCase();
+        
+        // שלב ד': הצגה או הסתרה
+        if (title.includes(searchTerm)) {
+            card.classList.remove('hidden'); // מוודא שזה לא מוסתר
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+// שלב ה': חיבור התיבה לאירוע הקלדה
+// זה יפעיל את החיפוש אוטומטית בכל אות שאתה כותב
+els.searchInput.addEventListener('input', filterMedia);
