@@ -511,68 +511,65 @@ function extractYoutubeId(url){
 
 }
 
-// הוספה בסוף הקובץ - שורה 499 ואילך
+// --- פונקציונליות חיפוש צף משופרת ---
 function filterMedia() {
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+    const searchInput = document.getElementById('searchInput');
     const resultsContainer = document.getElementById('searchResults');
     
-    // אם התיבה ריקה - מסתירים את הרשימה ויוצאים
+    if (!searchInput || !resultsContainer) return;
+
+    const searchTerm = searchInput.value.toLowerCase().trim();
+    
     if (!searchTerm) {
         resultsContainer.innerHTML = '';
         resultsContainer.classList.add('hidden');
         return;
     }
 
-    // אוספים את כל התוכן מה-State (סרטים וסדרות)
     const allContent = [
         ...Object.entries(state.movies || {}).map(([id, data]) => ({...data, id, type:'movie'})),
         ...Object.entries(state.series || {}).map(([id, data]) => ({...data, id, type:'series'}))
     ];
 
-    // מסננים לפי השם
     const matches = allContent.filter(item => 
         item.title.toLowerCase().includes(searchTerm)
-    ).slice(0, 7); // מציגים עד 7 תוצאות
+    ).slice(0, 7);
 
     if (matches.length > 0) {
         resultsContainer.innerHTML = matches.map(item => `
-            <div class="search-result-item" data-type="${item.type}" data-id="${item.id}" style="cursor: pointer;">
-                <img src="${item.poster}" alt="" style="pointer-events: none;">
+            <div class="search-result-item" data-type="${item.type}" data-id="${item.id}" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <img src="${item.poster}" alt="" style="width: 40px; height: 55px; object-fit: cover; border-radius: 4px; pointer-events: none;">
                 <div style="pointer-events: none;">
-                    <div class="title">${item.title}</div>
-                    <div class="type">${item.type === 'movie' ? '🎬 סרט' : '📺 סדרה'}</div>
+                    <div class="title" style="font-weight: bold; color: white; font-size: 14px;">${item.title}</div>
+                    <div class="type" style="font-size: 11px; color: #aaa;">${item.type === 'movie' ? '🎬 סרט' : '📺 סדרה'}</div>
                 </div>
             </div>
         `).join('');
         resultsContainer.classList.remove('hidden');
 
-        // הוספת פקודת לחיצה לכל תוצאה ברשימה
         resultsContainer.querySelectorAll('.search-result-item').forEach(el => {
             el.addEventListener('click', () => {
                 const type = el.getAttribute('data-type');
                 const id = el.getAttribute('data-id');
-                
-                // הפעלת הפונקציה הקיימת באתר שלך לפתיחת פרטים
-                showDetails(type, id);
-                
-                // סגירת רשימת החיפוש אחרי הלחיצה
+                if (typeof showDetails === 'function') showDetails(type, id);
                 resultsContainer.classList.add('hidden');
-                document.getElementById('searchInput').value = '';
+                searchInput.value = '';
             });
         });
+    } else {
+        resultsContainer.innerHTML = '<div style="padding:15px; text-align:center; color:#888;">לא נמצאו תוצאות</div>';
+        resultsContainer.classList.remove('hidden');
     }
+}
 
-// מאזין להקלדה בתיבת החיפוש
-document.getElementById('searchInput').addEventListener('input', filterMedia);
+// כאן זה מתחיל "מוקדם" (צמוד לשמאל) וזה תקין - אלו פקודות עצמאיות
+if (document.getElementById('searchInput')) {
+    document.getElementById('searchInput').addEventListener('input', filterMedia);
+}
 
-// סגירת הרשימה אם לוחצים בכל מקום אחר במסך
 document.addEventListener('click', (e) => {
-    const container = e.target.closest('.top-actions');
-    if (!container) {
-        document.getElementById('searchResults').classList.add('hidden');
+    const searchRes = document.getElementById('searchResults');
+    if (searchRes && !e.target.closest('.top-actions')) {
+        searchRes.classList.add('hidden');
     }
 });
-
-// שלב ה': חיבור התיבה לאירוע הקלדה
-// זה יפעיל את החיפוש אוטומטית בכל אות שאתה כותב
-els.searchInput.addEventListener('input', filterMedia);
