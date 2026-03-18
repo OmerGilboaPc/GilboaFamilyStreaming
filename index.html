@@ -79,7 +79,11 @@
       </div>
 
       <div class="top-actions">
-        <input id="searchInput" class="search-input" placeholder="חיפוש סרטים, סדרות ופרקים..." />
+        <div class="top-actions">
+        <div style="position: relative; flex: 1; max-width: 400px;">
+          <input id="searchInput" class="search-input" placeholder="חיפוש סרטים, סדרות ופרקים..." autocomplete="off" style="width: 100%;" />
+          <div id="searchResults" class="search-results-dropdown hidden"></div>
+        </div>
         <button id="randomBtn" class="btn btn-secondary">🎲 הפתיעו אותי</button>
         <button id="requestsBtn" class="btn btn-secondary">📩 בקשות</button>
         <button id="adminBtn" class="btn btn-secondary hidden">🛠 אדמין</button>
@@ -93,7 +97,7 @@
         <div>
           <div class="eyebrow">PRIVATE • FAMILY • STREAMING</div>
           <h1>ברוכים הבאים ל־<span>GILBOASTREAMFAMILY</span></h1>
-          <p>סרטים, סדרות, עונות, פרקים, דירוגים, המשך צפייה, בקשות ואדמין מלא — הכול במקום אחד.</p>
+          <p>סרטים, סדרות, עונות, פרקים, דירוגים, המשך צפייה, ובקשות — הכול במקום אחד.</p>
           <div class="row">
             <button id="heroRandomBtn" class="btn btn-primary">🎲 בחר לי משהו</button>
             <button id="heroRequestsBtn" class="btn btn-secondary">📩 בקשת סרט</button>
