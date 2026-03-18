@@ -511,7 +511,7 @@ function extractYoutubeId(url){
 
 }
 
-// --- פונקציונליות חיפוש צף משופרת ---
+// --- פונקציונליות חיפוש צף סופית ---
 function filterMedia() {
     const searchInput = document.getElementById('searchInput');
     const resultsContainer = document.getElementById('searchResults');
@@ -537,35 +537,44 @@ function filterMedia() {
 
     if (matches.length > 0) {
         resultsContainer.innerHTML = matches.map(item => `
-            <div class="search-result-item" data-type="${item.type}" data-id="${item.id}" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                <img src="${item.poster}" alt="" style="width: 40px; height: 55px; object-fit: cover; border-radius: 4px; pointer-events: none;">
-                <div style="pointer-events: none;">
+            <div class="search-result-item" 
+                 onclick="handleSearchClick('${item.type}', '${item.id}')" 
+                 style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <img src="${item.poster}" alt="" style="width: 40px; height: 55px; object-fit: cover; border-radius: 4px;">
+                <div>
                     <div class="title" style="font-weight: bold; color: white; font-size: 14px;">${item.title}</div>
                     <div class="type" style="font-size: 11px; color: #aaa;">${item.type === 'movie' ? '🎬 סרט' : '📺 סדרה'}</div>
                 </div>
             </div>
         `).join('');
         resultsContainer.classList.remove('hidden');
-
-        resultsContainer.querySelectorAll('.search-result-item').forEach(el => {
-            el.addEventListener('click', () => {
-                const type = el.getAttribute('data-type');
-                const id = el.getAttribute('data-id');
-                if (typeof showDetails === 'function') showDetails(type, id);
-                resultsContainer.classList.add('hidden');
-                searchInput.value = '';
-            });
-        });
     } else {
         resultsContainer.innerHTML = '<div style="padding:15px; text-align:center; color:#888;">לא נמצאו תוצאות</div>';
         resultsContainer.classList.remove('hidden');
     }
 }
 
-// כאן זה מתחיל "מוקדם" (צמוד לשמאל) וזה תקין - אלו פקודות עצמאיות
-if (document.getElementById('searchInput')) {
-    document.getElementById('searchInput').addEventListener('input', filterMedia);
+// פונקציית עזר לטיפול בלחיצה - שים אותה מחוץ ל-filterMedia
+function handleSearchClick(type, id) {
+    const resultsContainer = document.getElementById('searchResults');
+    const searchInput = document.getElementById('searchInput');
+    
+    // 1. סגירת הרשימה וניקוי
+    resultsContainer.classList.add('hidden');
+    searchInput.value = '';
+    
+    // 2. הפעלת הפונקציה המקורית של האתר שלך
+    if (typeof showDetails === 'function') {
+        showDetails(type, id);
+    } else {
+        console.error("פונקציית showDetails לא נמצאה!");
+    }
 }
+
+// חיבור האירועים
+document.addEventListener('input', (e) => {
+    if (e.target.id === 'searchInput') filterMedia();
+});
 
 document.addEventListener('click', (e) => {
     const searchRes = document.getElementById('searchResults');
