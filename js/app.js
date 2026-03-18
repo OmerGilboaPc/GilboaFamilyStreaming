@@ -511,28 +511,56 @@ function extractYoutubeId(url){
 
 }
 
-// --- שורה 499: פונקציונליות חיפוש ---
-
+// הוספה בסוף הקובץ - שורה 499 ואילך
 function filterMedia() {
-    // שלב א': הבנת מה המשתמש הקליד
-    const searchTerm = els.searchInput.value.toLowerCase().trim();
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+    const resultsContainer = document.getElementById('searchResults');
     
-    // שלב ב': תפיסת כל כרטיסי הסרטים והסדרות שמוצגים כרגע
-    const mediaCards = document.querySelectorAll('.media-card');
+    // אם התיבה ריקה - מסתירים את הרשימה ויוצאים
+    if (!searchTerm) {
+        resultsContainer.innerHTML = '';
+        resultsContainer.classList.add('hidden');
+        return;
+    }
 
-    mediaCards.forEach(card => {
-        // שלב ג': חילוץ שם הסרט מתוך הכרטיס
-        const title = card.querySelector('h3').innerText.toLowerCase();
-        
-        // שלב ד': הצגה או הסתרה
-        if (title.includes(searchTerm)) {
-            card.classList.remove('hidden'); // מוודא שזה לא מוסתר
-            card.style.display = 'block';
-        } else {
-            card.style.display = 'none';
-        }
-    });
+    // אוספים את כל התוכן מה-State (סרטים וסדרות)
+    const allContent = [
+        ...Object.entries(state.movies || {}).map(([id, data]) => ({...data, id, type:'movie'})),
+        ...Object.entries(state.series || {}).map(([id, data]) => ({...data, id, type:'series'}))
+    ];
+
+    // מסננים לפי השם
+    const matches = allContent.filter(item => 
+        item.title.toLowerCase().includes(searchTerm)
+    ).slice(0, 7); // מציגים עד 7 תוצאות
+
+    if (matches.length > 0) {
+        resultsContainer.innerHTML = matches.map(item => `
+            <div class="search-result-item" onclick="showDetails('${item.type}', '${item.id}')">
+                <img src="${item.poster}" alt="">
+                <div>
+                    <div class="title">${item.title}</div>
+                    <div class="type">${item.type === 'movie' ? '🎬 סרט' : '📺 סדרה'}</div>
+                </div>
+            </div>
+        `).join('');
+        resultsContainer.classList.remove('hidden');
+    } else {
+        resultsContainer.innerHTML = '<div style="padding:15px; text-align:center; color:#888;">לא נמצאו תוצאות</div>';
+        resultsContainer.classList.remove('hidden');
+    }
 }
+
+// מאזין להקלדה בתיבת החיפוש
+document.getElementById('searchInput').addEventListener('input', filterMedia);
+
+// סגירת הרשימה אם לוחצים בכל מקום אחר במסך
+document.addEventListener('click', (e) => {
+    const container = e.target.closest('.top-actions');
+    if (!container) {
+        document.getElementById('searchResults').classList.add('hidden');
+    }
+});
 
 // שלב ה': חיבור התיבה לאירוע הקלדה
 // זה יפעיל את החיפוש אוטומטית בכל אות שאתה כותב
