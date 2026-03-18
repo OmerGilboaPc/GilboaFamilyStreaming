@@ -2,7 +2,7 @@ import { auth, db, ADMIN_EMAIL } from "./firebase.js";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { ref, get, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-const state = { user:null, isAdmin:false, authMode:"login", profiles:{}, currentProfileId:null, movies:{}, series:{}, collections:{}, requests:{}, ratings:{}, progress:{}, ytPlayer:null, ytTimer:null };;
+const state = { user:null, isAdmin:false, authMode:"login", profiles:{}, currentProfileId:null, movies:{}, series:{}, requests:{}, ratings:{}, progress:{}, ytPlayer:null, ytTimer:null };;
 const $ = (id) => document.getElementById(id);
 const els = {
   splash:$("splash"), authScreen:$("authScreen"), profilesScreen:$("profilesScreen"), appScreen:$("appScreen"),
@@ -137,9 +137,6 @@ function wireRealtime(){
   onValue(ref(db, "requests"), snap => { state.requests = snap.val() || {}; renderRequests(); });
   onValue(ref(db, "ratings"), snap => { state.ratings = snap.val() || {}; renderAll(); });
   onValue(ref(db, `progress/${uid()}`), snap => { state.progress = snap.val() || {}; renderContinueWatching(); });
-  
-  // הנה השורה שמוסיפים כאן בפנים:
-  onValue(ref(db, "collections"), snap => { state.collections = snap.val() || {}; renderAll(); });
 }
 
 function showProfiles(){
