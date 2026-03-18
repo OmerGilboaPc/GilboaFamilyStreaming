@@ -94,6 +94,63 @@
     </div>
   </div>
 
+  <script type="module">
+    // ייבוא הכלים מ-Firebase (אנחנו משתמשים בייבוא ישיר כדי שלא תצטרך לגעת ב-admin.js)
+    import { getDatabase, ref, push, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    
+    // התחברות ל-DB (המשתנה db כבר קיים אצלך גלובלית מהסקריפט הראשי)
+    const database = getDatabase();
+
+    // 1. הפעלת כפתור "צור אוסף"
+    document.getElementById('addColBtn').onclick = async () => {
+      const nameInput = document.getElementById('newColName');
+      const name = nameInput.value.trim();
+
+      if (!name) {
+        alert("נא להזין שם לאוסף!");
+        return;
+      }
+
+      try {
+        const newColRef = push(ref(database, "collections"));
+        await set(newColRef, {
+          title: name,
+          items: []
+        });
+        nameInput.value = ""; // ניקוי השדה
+      } catch (e) {
+        console.error("שגיאה ביצירת אוסף:", e);
+      }
+    };
+
+    // 2. הצגת האוספים ברשימה שמתחת לכפתור
+    onValue(ref(database, "collections"), (snapshot) => {
+      const data = snapshot.val() || {};
+      const list = document.getElementById('adminCollectionsList');
+      if (!list) return;
+
+      list.innerHTML = Object.entries(data).map(([id, col]) => `
+        <div class="admin-item glass" style="margin-bottom:10px; padding:15px; display:flex; justify-content:space-between; align-items:center; border-radius:10px;">
+          <div>
+            <strong style="font-size:1.1rem;">${col.title}</strong>
+            <div class="small muted">${(col.items || []).length} פריטים</div>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button class="btn btn-secondary" onclick="openPicker('${id}')">➕ הוסף תוכן</button>
+            <button class="btn btn-secondary" style="background:rgba(255,0,0,0.2)" onclick="deleteCol('${id}')">🗑 מחק</button>
+          </div>
+        </div>
+      `).join("") || '<div class="muted">אין אוספים עדיין.</div>';
+    });
+
+    // 3. פונקציית מחיקה
+    window.deleteCol = (id) => {
+      if (confirm("למחוק את האוסף?")) {
+        remove(ref(database, `collections/${id}`));
+      }
+    };
+  </script>
+
   <script type="module" src="js/admin.js"></script>
 </body>
 </html>
