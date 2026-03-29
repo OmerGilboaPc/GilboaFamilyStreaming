@@ -291,12 +291,10 @@ function renderSeriesList() {
 //  🎞 EPISODES
 // ══════════════════════════════════════════════════════════════
 function loadEpisodes() {
-  onValue(ref(db, 'episodes'), snap => {
-    allEpisodes = snap.val() || {};
-    renderEpisodesList();
-    renderSeriesList(); // update episode counts
-    updateStats();
-  });
+  // פרקים חיים בתוך series/{id}/seasons/{n}/episodes/{n}
+  // לא collection נפרד — loadSeries כבר טוען הכל
+  // כאן רק מרנדרים את הרשימה
+  renderEpisodesList();
 }
 
 function populateEpisodeSeriesSelects() {
@@ -334,15 +332,19 @@ $('addEpisodeBtn')?.addEventListener('click', async () => {
   if (!title)    { showToast('שם הפרק חובה', 'error'); return; }
   if (!video)    { showToast('קישור וידאו חובה', 'error'); return; }
 
-  const data = {
-    seriesId, season, number, title,
-    createdAt: Date.now(),
+  // כתיבה למבנה: series/{seriesId}/seasons/{season}/episodes/{number}
+  const epData = {
+    title,
+    video,
+    updatedAt: Date.now(),
     ...(poster      && { poster }),
     ...(description && { description }),
-    video,
   };
 
-  await push(ref(db, 'episodes'), data);
+  await set(
+    ref(db, `series/${seriesId}/seasons/${season}/episodes/${number}`),
+    epData
+  );
   clear('episodeSeason','episodeNumber','episodeTitle','episodePoster','episodeVideo','episodeDescription');
   showAdminSuccess('episodeSuccess');
   showToast(`פרק "${title}" נוסף!`, 'success');
@@ -355,42 +357,50 @@ function renderEpisodesList() {
 
   const filterSeries = $('episodeFilterSelect')?.value || '';
 
-  const entries = Object.entries(allEpisodes)
-    .filter(([, ep]) => !filterSeries || ep.seriesId === filterSeries)
-    .sort((a, b) => {
-      const sa = allSeries[a[1].seriesId]?.title || '';
-      const sb = allSeries[b[1].seriesId]?.title || '';
-      if (sa !== sb) return sa.localeCompare(sb, 'he');
-      if (a[1].season !== b[1].season) return a[1].season - b[1].season;
-      return a[1].number - b[1].number;
+  // בנה רשימה שטוחה מ-series/{id}/seasons/{n}/episodes/{n}
+  const entries = [];
+  Object.entries(allSeries).forEach(([sid, s]) => {
+    if (filterSeries && sid !== filterSeries) return;
+    const seasons = s.seasons || {};
+    Object.entries(seasons).forEach(([seasonNum, seasonObj]) => {
+      const eps = seasonObj.episodes || {};
+      Object.entries(eps).forEach(([epNum, ep]) => {
+        entries.push({ sid, seasonNum: +seasonNum, epNum: +epNum, ep, seriesTitle: s.title });
+      });
     });
+  });
+
+  entries.sort((a, b) => {
+    if (a.seriesTitle !== b.seriesTitle) return a.seriesTitle.localeCompare(b.seriesTitle, 'he');
+    if (a.seasonNum !== b.seasonNum) return a.seasonNum - b.seasonNum;
+    return a.epNum - b.epNum;
+  });
 
   if (entries.length === 0) {
     list.innerHTML = '<div class="muted small" style="padding:12px;">אין פרקים</div>';
     return;
   }
 
-  entries.forEach(([id, ep]) => {
-    const seriesName = allSeries[ep.seriesId]?.title || ep.seriesId;
+  entries.forEach(({ sid, seasonNum, epNum, ep, seriesTitle }) => {
     const item = document.createElement('div');
     item.className = 'admin-item';
     item.innerHTML = `
-      <img src="${ep.poster || ''}" alt="${ep.title}"
+      <img src="${ep.poster || ''}" alt="${ep.title || ''}"
            style="width:64px;height:40px;object-fit:cover;border-radius:7px;background:#1a1a28;flex-shrink:0;"
            onerror="this.style.background='#1a1a28'; this.src='';" />
       <div class="admin-item-info">
         <div class="admin-item-title" style="font-size:13px;">
-          עונה ${ep.season} • פרק ${ep.number} — ${ep.title}
+          עונה ${seasonNum} • פרק ${epNum}${ep.title ? ' — ' + ep.title : ''}
         </div>
-        <div class="admin-item-meta">${seriesName}</div>
+        <div class="admin-item-meta">${seriesTitle}</div>
       </div>
       <button class="btn btn-danger" style="padding:7px 10px; font-size:12px; flex-shrink:0;"
-              data-del-ep="${id}">🗑</button>
+              data-del-ep="true">🗑</button>
     `;
 
-    item.querySelector(`[data-del-ep="${id}"]`).addEventListener('click', async () => {
-      if (!confirm(`למחוק פרק "${ep.title}"?`)) return;
-      await remove(ref(db, `episodes/${id}`));
+    item.querySelector('[data-del-ep]').addEventListener('click', async () => {
+      if (!confirm(`למחוק פרק ${epNum} עונה ${seasonNum}?`)) return;
+      await remove(ref(db, `series/${sid}/seasons/${seasonNum}/episodes/${epNum}`));
       showToast('פרק נמחק', 'info');
     });
 
