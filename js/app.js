@@ -261,9 +261,21 @@ function loadAll() {
   });
   unsubscribers.push(seriesUnsub);
 
-  // Episodes
-  const epsUnsub = onValue(ref(db, 'episodes'), snap => {
-    allEpisodes = snap.val() || {};
+  // Episodes — מבנה: series/{id}/seasons/{n}/episodes/{n}
+  // הפרקים נטענים מתוך allSeries ישירות, לא collection נפרד
+  // allEpisodes משמש לספירה בלבד — נבנה מ-allSeries
+  const epsUnsub = onValue(ref(db, 'series'), snap => {
+    const seriesData = snap.val() || {};
+    // ספור פרקים מכל הסדרות
+    let count = 0;
+    Object.values(seriesData).forEach(s => {
+      const seasons = s.seasons || {};
+      Object.values(seasons).forEach(season => {
+        const eps = season.episodes || {};
+        count += Object.keys(eps).length;
+      });
+    });
+    allEpisodes = { _count: count }; // just for stats
     updateStats();
   });
   unsubscribers.push(epsUnsub);
@@ -299,9 +311,17 @@ function loadAll() {
 
 // ── Stats ────────────────────────────────────────────────────
 function updateStats() {
-  $('moviesCount').textContent  = Object.keys(allMovies).length;
-  $('seriesCount').textContent  = Object.keys(allSeries).length;
-  $('episodesCount').textContent = Object.keys(allEpisodes).length;
+  // ספור פרקים מכל הסדרות (מבנה series/{id}/seasons/{n}/episodes/{n})
+  let epCount = 0;
+  Object.values(allSeries).forEach(s => {
+    const seasons = s.seasons || {};
+    Object.values(seasons).forEach(season => {
+      epCount += Object.keys(season.episodes || {}).length;
+    });
+  });
+  $('moviesCount').textContent   = Object.keys(allMovies).length;
+  $('seriesCount').textContent   = Object.keys(allSeries).length;
+  $('episodesCount').textContent = epCount;
 }
 
 // ── Build Card ───────────────────────────────────────────────
@@ -720,15 +740,30 @@ function openDetails(id, item, type) {
     });
 
   } else {
-    // Series
-    const episodes  = Object.entries(allEpisodes)
-      .filter(([, ep]) => ep.seriesId === id)
-      .sort((a, b) => {
-        if (a[1].season !== b[1].season) return a[1].season - b[1].season;
-        return a[1].number - b[1].number;
+    // Series — מבנה: series/{id}/seasons/{seasonNum}/episodes/{epNum}
+    // פורמט episodes: [ [uniqueKey, { season, number, title, video, ... }], ... ]
+    const seasonsData = item.seasons || {};
+    const episodes = [];
+    Object.entries(seasonsData).forEach(([seasonNum, seasonObj]) => {
+      const eps = seasonObj.episodes || {};
+      Object.entries(eps).forEach(([epNum, ep]) => {
+        // המפתח הייחודי: seriesId_season_epNum
+        const uniqueKey = `${id}_s${seasonNum}_e${epNum}`;
+        episodes.push([uniqueKey, {
+          ...ep,
+          season: Number(seasonNum),
+          number: Number(epNum),
+          _seasonKey: seasonNum,
+          _epKey: epNum,
+        }]);
       });
+    });
+    episodes.sort((a, b) => {
+      if (a[1].season !== b[1].season) return a[1].season - b[1].season;
+      return a[1].number - b[1].number;
+    });
 
-    const seasons   = [...new Set(episodes.map(([, ep]) => ep.season))].sort((a, b) => a - b);
+    const seasons = [...new Set(episodes.map(([, ep]) => ep.season))].sort((a, b) => a - b);
     const totalEps  = episodes.length;
     const watchedEps = episodes.filter(([eid]) => continueData[eid]?.progress > 80).length;
     const pct       = totalEps > 0 ? Math.round((watchedEps / totalEps) * 100) : 0;
@@ -833,26 +868,46 @@ function renderEpisodes(episodes, season, seriesId, seriesItem) {
 
   const filtered = episodes.filter(([, ep]) => ep.season === season);
 
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="muted small" style="padding:14px;">אין פרקים בעונה זו</div>';
+    return;
+  }
+
   filtered.forEach(([epId, ep]) => {
+    const epNum    = ep.number  ?? ep._epKey ?? '?';
+    const epSeason = ep.season  ?? season;
+    const epTitle  = ep.title   ?? ep.name  ?? '';
+    const epVideo  = ep.video   ?? ep.url   ?? ep.videoUrl ?? ep.link ?? '';
+    const epDesc   = ep.description ?? ep.desc ?? '';
+    const epPoster = ep.poster  ?? ep.thumbnail ?? ep.image ?? ep.thumb ?? '';
+
+    // continueData key = seriesId_season_epNum (אותו uniqueKey שבנינו)
     const watched = (continueData[epId]?.progress || 0) > 80;
-    const item    = el('div', 'episode-item');
+
+    const item = el('div', 'episode-item');
     item.innerHTML = `
-      <img src="${ep.poster || ''}" alt="${ep.title}"
+      <img src="${epPoster}" alt="${epTitle}"
            onerror="this.style.background='#222'; this.src='';" />
       <div style="flex:1; min-width:0;">
         <div style="font-weight:800; font-size:14px;">
-          פרק ${ep.number}${ep.title ? ' — ' + ep.title : ''}
+          פרק ${epNum}${epTitle ? ' — ' + epTitle : ''}
           ${watched ? '<span class="badge" style="margin-right:6px; font-size:10px;">✅ נצפה</span>' : ''}
         </div>
-        ${ep.description ? `<div class="small muted" style="margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ep.description}</div>` : ''}
+        ${epDesc ? `<div class="small muted" style="margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${epDesc}</div>` : ''}
       </div>
       <button class="btn btn-primary" style="padding:9px 14px; flex-shrink:0;">▶</button>
     `;
 
     item.querySelector('button').addEventListener('click', () => {
       closeModal('detailsModal');
-      playVideo(ep.video, seriesItem.title, `עונה ${ep.season} • פרק ${ep.number}`, true, false, epId, episodes, seriesId, seriesItem);
-      addToHistory(seriesId, 'series', seriesItem, { episode: ep.number, season: ep.season });
+      playVideo(
+        epVideo,
+        seriesItem.title,
+        `עונה ${epSeason} • פרק ${epNum}`,
+        true, false,
+        epId, episodes, seriesId, seriesItem
+      );
+      addToHistory(seriesId, 'series', seriesItem, { episode: epNum, season: epSeason });
     });
 
     list.appendChild(item);
@@ -959,12 +1014,23 @@ function playVideo(url, title, meta, isEpisode = false, isTrailer = false,
   openModal('playerModal');
 }
 
-// Close player → clear interval
-$('playerModal')?.querySelector('.modal-close')?.addEventListener('click', () => {
+// ── Stop player completely (audio bug fix) ───────────────────
+function stopPlayer() {
   clearInterval(progressInterval);
+  const host = $('playerHost');
+  if (!host) return;
+  // מנקה את כל התוכן — עוצר iframe YouTube וגם video tag
+  host.innerHTML = '';
+}
+
+// Close player → stop audio + clear interval
+$('playerModal')?.querySelector('.modal-close')?.addEventListener('click', () => {
+  stopPlayer();
+  closeModal('playerModal');
 });
 $('playerModal')?.querySelector('.modal-backdrop')?.addEventListener('click', () => {
-  clearInterval(progressInterval);
+  stopPlayer();
+  closeModal('playerModal');
 });
 
 // ── Random ───────────────────────────────────────────────────
