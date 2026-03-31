@@ -236,6 +236,8 @@
     <button class="admin-nav-tab" data-panel="episodes">🎞 פרקים</button>
     <button class="admin-nav-tab" data-panel="requests">📩 בקשות</button>
     <button class="admin-nav-tab" data-panel="users">👥 משתמשים</button>
+    <button class="admin-nav-tab" data-panel="broadcast">📢 Broadcast</button>
+    <button class="admin-nav-tab" data-panel="watchparties">🎬 Watch Parties</button>
   </div>
 
   <div class="container">
@@ -491,7 +493,66 @@
       </div>
       <div id="adminUsersList" class="stack"></div>
     </div>
+    
+    <!-- ── Panel: Broadcast ──────────────────── -->
+    <div class="admin-panel" id="panel-broadcast">
+  <div class="section-head" style="margin-top:8px;">
+    <h2>📢 Global Broadcast</h2>
+  </div>
+  <div class="admin-grid">
 
+    <section class="glass admin-card">
+      <h3 style="margin-bottom:18px;">שלח הודעה לכל המשתמשים</h3>
+      <div class="broadcast-form">
+
+        <div style="display:flex;gap:10px;align-items:center;">
+          <select id="broadcastIconSelect"
+                  style="width:80px;padding:12px 10px;border-radius:12px;
+                         border:1px solid rgba(255,255,255,0.08);
+                         background:rgba(255,255,255,0.04);color:#fff;font-size:18px;">
+            <option>📢</option><option>🎬</option><option>🔥</option>
+            <option>⚠️</option><option>🎉</option><option>ℹ️</option>
+            <option>🚨</option><option>✅</option>
+          </select>
+          <input id="broadcastInput"
+                 placeholder="הקלד הודעה לכל המשתמשים..."
+                 style="flex:1;padding:14px 16px;border-radius:12px;
+                        border:1px solid rgba(255,255,255,0.08);
+                        background:rgba(255,255,255,0.04);color:#fff;
+                        font-family:Heebo,sans-serif;font-size:15px;" />
+        </div>
+
+        <div class="broadcast-preview" id="broadcastPreview">
+          <span id="broadcastPreviewText" class="broadcast-preview-placeholder">
+            Preview ההודעה יופיע כאן...
+          </span>
+        </div>
+
+        <button id="sendBroadcastBtn" class="btn btn-primary" style="padding:14px;">
+          📢 שלח לכולם עכשיו
+        </button>
+      </div>
+    </section>
+
+    <section class="glass admin-card">
+      <h3 style="margin-bottom:16px;">📋 היסטוריית שידורים</h3>
+      <div id="broadcastHistoryList" class="stack"></div>
+    </section>
+
+  </div>
+</div>
+
+<!-- ── Panel: Watch Parties ──────────────── -->
+    <div class="admin-panel" id="panel-watchparties">
+  <div class="section-head" style="margin-top:8px;">
+    <h2>🎬 Watch Parties פעילים</h2>
+    <button class="btn btn-secondary"
+            onclick="loadWatchParties()"
+            style="font-size:12px;padding:8px 14px;">🔄 רענן</button>
+  </div>
+  <div id="wpAdminList" class="stack"></div>
+</div>
+    
   </div><!-- /container -->
 
   <script>
@@ -530,5 +591,6 @@
   </script>
 
   <script type="module" src="js/admin.js"></script>
+  <script type="module" src="js/admin-broadcast.js"></script>
 </body>
 </html>
