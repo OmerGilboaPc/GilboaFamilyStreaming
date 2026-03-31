@@ -622,3 +622,665 @@ textarea{min-height:100px;resize:vertical}
   .details-actions { gap: 8px; }
   .details-actions .btn { flex: 1; justify-content: center; }
 }
+
+/* ============================================================
+   WATCH PARTY + BROADCAST — style additions
+   הדבק בסוף css/style.css
+   ============================================================ */
+
+/* ── 📢 Broadcast Toast (עליון, שונה מ-toast רגיל) ───────── */
+#broadcastBanner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 99999;
+  background: linear-gradient(135deg, #e50914, #ff3b47);
+  color: #fff;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  box-shadow: 0 4px 32px rgba(229,9,20,0.5);
+  animation: broadcastIn 0.4s cubic-bezier(0.16,1,0.3,1);
+  font-family: "Heebo", sans-serif;
+}
+
+@keyframes broadcastIn {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+
+.broadcast-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.broadcast-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  animation: broadcastPulse 1s infinite;
+}
+
+@keyframes broadcastPulse {
+  0%,100% { transform: scale(1); }
+  50%      { transform: scale(1.2); }
+}
+
+.broadcast-text {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.broadcast-close {
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: #fff;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+.broadcast-close:hover { background: rgba(255,255,255,0.3); }
+
+/* ── 🎬 Watch Party — כפתור על כרטיס ───────────────────────── */
+.watch-party-btn {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(229,9,20,0.85);
+  border: none;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 5px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  z-index: 10;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.2s, transform 0.2s, background 0.2s;
+  backdrop-filter: blur(6px);
+  white-space: nowrap;
+  font-family: "Heebo", sans-serif;
+}
+.card:hover .watch-party-btn {
+  opacity: 1;
+  transform: translateY(0);
+}
+.watch-party-btn:hover { background: rgba(229,9,20,1); }
+
+/* ── Watch Party Modal ──────────────────────────────────────── */
+#watchPartyModal .modal-dialog {
+  width: min(1400px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.wp-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  height: calc(100vh - 80px);
+  max-height: 860px;
+  overflow: hidden;
+}
+
+/* ── Video side ─────────────────────────────────────────────── */
+.wp-video-side {
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  overflow: hidden;
+}
+
+.wp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: #0a0a12;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.wp-title-area { flex: 1; min-width: 0; }
+.wp-movie-title {
+  font-size: 17px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: "Heebo", sans-serif;
+}
+.wp-room-id {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: "Heebo", sans-serif;
+}
+
+.wp-members {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.wp-member-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #1e1e30;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  border: 2px solid rgba(255,255,255,0.1);
+  font-family: "Heebo", sans-serif;
+}
+.wp-member-avatar.online {
+  border-color: rgba(34,197,94,0.6);
+  box-shadow: 0 0 8px rgba(34,197,94,0.3);
+}
+
+.wp-video-wrap {
+  flex: 1;
+  position: relative;
+  background: #000;
+  overflow: hidden;
+}
+
+.wp-video-wrap video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* Waiting overlay */
+.wp-waiting {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 10;
+  font-family: "Heebo", sans-serif;
+}
+.wp-waiting-icon { font-size: 56px; animation: waitingBob 2s ease-in-out infinite; }
+@keyframes waitingBob {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+.wp-waiting h3 { font-size: 22px; font-weight: 900; margin: 0; }
+.wp-waiting p  { color: var(--muted); font-size: 15px; margin: 0; }
+.wp-waiting-dots::after {
+  content: '';
+  animation: dots 1.4s infinite;
+}
+@keyframes dots {
+  0%   { content: ''; }
+  33%  { content: '.'; }
+  66%  { content: '..'; }
+  100% { content: '...'; }
+}
+
+/* Host controls */
+.wp-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  background: #0a0a12;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.wp-controls .btn { padding: 10px 18px; font-size: 14px; }
+.wp-time {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-right: auto;
+  font-family: "Heebo", sans-serif;
+}
+
+/* Sync indicator */
+.wp-sync-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #4ade80;
+  font-weight: 600;
+  font-family: "Heebo", sans-serif;
+}
+.wp-sync-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  animation: syncPulse 2s infinite;
+}
+@keyframes syncPulse {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
+.wp-sync-badge.desynced { color: #facc15; }
+.wp-sync-badge.desynced .wp-sync-dot { background: #facc15; }
+
+/* ── Chat side ──────────────────────────────────────────────── */
+.wp-chat-side {
+  display: flex;
+  flex-direction: column;
+  background: #0d0d1a;
+  border-right: 1px solid rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+
+.wp-chat-header {
+  padding: 14px 16px;
+  font-weight: 800;
+  font-size: 15px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  font-family: "Heebo", sans-serif;
+}
+
+.wp-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scroll-behavior: smooth;
+}
+.wp-chat-messages::-webkit-scrollbar { width: 4px; }
+.wp-chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 999px; }
+
+/* Chat message */
+.chat-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 95%;
+  animation: msgIn 0.2s ease;
+  font-family: "Heebo", sans-serif;
+}
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.chat-msg.own { align-self: flex-end; align-items: flex-end; }
+.chat-msg.other { align-self: flex-start; align-items: flex-start; }
+
+.chat-msg-sender {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 0 6px;
+}
+
+.chat-msg-bubble {
+  padding: 9px 13px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  position: relative;
+  max-width: 260px;
+  word-break: break-word;
+}
+
+.chat-msg.own .chat-msg-bubble {
+  background: linear-gradient(135deg, var(--red), var(--red2));
+  color: #fff;
+  border-bottom-left-radius: 4px;
+}
+.chat-msg.other .chat-msg-bubble {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text);
+  border-bottom-right-radius: 4px;
+}
+
+/* System message */
+.chat-msg.system {
+  align-self: center;
+  align-items: center;
+}
+.chat-msg.system .chat-msg-bubble {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--muted);
+  font-size: 12px;
+  border-radius: 999px;
+  padding: 5px 12px;
+}
+
+/* Reply quote */
+.chat-reply-quote {
+  font-size: 12px;
+  color: var(--muted);
+  border-right: 3px solid rgba(255,255,255,0.3);
+  padding: 3px 8px;
+  margin-bottom: 4px;
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.chat-msg.own .chat-reply-quote { border-right: none; border-left: 3px solid rgba(255,255,255,0.5); }
+
+/* Reactions */
+.chat-reactions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.reaction-pill {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: "Heebo", sans-serif;
+}
+.reaction-pill:hover { background: rgba(255,255,255,0.14); transform: scale(1.08); }
+.reaction-pill.mine  { background: rgba(229,9,20,0.2); border-color: rgba(229,9,20,0.35); }
+.reaction-count { font-size: 11px; color: var(--muted); font-weight: 700; }
+
+/* Message hover actions */
+.chat-msg-wrap {
+  position: relative;
+}
+.chat-msg-actions {
+  position: absolute;
+  top: 0;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  background: #13131f;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 3px 6px;
+}
+.chat-msg.own  .chat-msg-actions { left: calc(100% + 6px); }
+.chat-msg.other .chat-msg-actions { right: calc(100% + 6px); }
+.chat-msg-wrap:hover .chat-msg-actions { opacity: 1; }
+
+.chat-action-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+  font-family: "Heebo", sans-serif;
+}
+.chat-action-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+
+/* Reply preview bar */
+.wp-reply-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: rgba(229,9,20,0.08);
+  border-top: 1px solid rgba(229,9,20,0.2);
+  font-size: 13px;
+  color: var(--muted);
+  font-family: "Heebo", sans-serif;
+}
+.wp-reply-bar-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+.wp-reply-cancel {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  font-family: "Heebo", sans-serif;
+}
+
+/* Emoji picker */
+.emoji-picker-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 14px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.emoji-pick-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  font-family: "Heebo", sans-serif;
+}
+.emoji-pick-btn:hover { background: rgba(255,255,255,0.12); transform: scale(1.15); }
+
+/* Chat input */
+.wp-chat-input-wrap {
+  padding: 12px 14px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  background: #0d0d1a;
+}
+.wp-chat-input {
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--text);
+  outline: none;
+  font-family: "Heebo", sans-serif;
+  resize: none;
+  height: 42px;
+  max-height: 100px;
+  overflow-y: auto;
+  transition: border-color 0.2s;
+}
+.wp-chat-input:focus { border-color: rgba(229,9,20,0.4); }
+.wp-chat-send {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--red), var(--red2));
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s, box-shadow 0.15s;
+  font-family: "Heebo", sans-serif;
+}
+.wp-chat-send:hover { transform: scale(1.05); box-shadow: 0 4px 16px rgba(229,9,20,0.4); }
+.wp-chat-send:active { transform: scale(0.95); }
+
+/* ── Invite Modal ───────────────────────────────────────────── */
+.invite-profiles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.invite-profile-card {
+  background: rgba(255,255,255,0.04);
+  border: 2px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 14px 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, transform 0.2s;
+  font-family: "Heebo", sans-serif;
+}
+.invite-profile-card:hover { background: rgba(255,255,255,0.08); transform: translateY(-2px); }
+.invite-profile-card.selected {
+  border-color: var(--red);
+  background: rgba(229,9,20,0.1);
+}
+.invite-profile-avatar { font-size: 30px; margin-bottom: 6px; }
+.invite-profile-name { font-size: 13px; font-weight: 700; }
+.invite-check {
+  font-size: 16px;
+  margin-top: 4px;
+  color: var(--red);
+  height: 20px;
+}
+
+/* ── WP Invite Notification ─────────────────────────────────── */
+.wp-invite-toast {
+  background: #13131f;
+  border: 1px solid rgba(229,9,20,0.35);
+  border-radius: 16px;
+  padding: 16px 18px;
+  min-width: 280px;
+  max-width: 360px;
+  pointer-events: all;
+  animation: toastIn 0.3s cubic-bezier(0.16,1,0.3,1);
+  font-family: "Heebo", sans-serif;
+}
+.wp-invite-title { font-weight: 900; font-size: 15px; margin-bottom: 4px; }
+.wp-invite-sub { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+.wp-invite-actions { display: flex; gap: 8px; }
+.wp-invite-actions .btn { flex: 1; padding: 10px; font-size: 13px; }
+
+/* ── Admin Watch Party Panel ────────────────────────────────── */
+.wp-admin-room {
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  transition: border-color 0.2s;
+}
+.wp-admin-room:hover { border-color: rgba(229,9,20,0.2); }
+
+.wp-admin-room-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.wp-admin-room-title { font-weight: 800; font-size: 16px; flex: 1; font-family: "Heebo", sans-serif; }
+.wp-room-status {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+.wp-room-status.playing { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+.wp-room-status.waiting { background: rgba(250,204,21,0.12); color: #facc15; border: 1px solid rgba(250,204,21,0.25); }
+.wp-room-status.paused  { background: rgba(255,255,255,0.06); color: var(--muted); border: 1px solid rgba(255,255,255,0.1); }
+.wp-room-status.ended   { background: rgba(229,9,20,0.1); color: #ff7a83; border: 1px solid rgba(229,9,20,0.25); }
+
+.wp-admin-chat-log {
+  max-height: 200px;
+  overflow-y: auto;
+  background: rgba(0,0,0,0.25);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  font-family: "Heebo", sans-serif;
+}
+.wp-admin-chat-log::-webkit-scrollbar { width: 3px; }
+.wp-admin-chat-log::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 999px; }
+
+.wp-admin-msg {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.wp-admin-msg strong { color: var(--text); }
+.wp-admin-msg .ts { font-size: 11px; color: var(--muted2); margin-right: 6px; }
+
+/* ── Broadcast admin form ───────────────────────────────────── */
+.broadcast-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.broadcast-preview {
+  background: linear-gradient(135deg, #e50914, #ff3b47);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  min-height: 52px;
+  font-family: "Heebo", sans-serif;
+}
+.broadcast-preview-placeholder { opacity: 0.5; font-weight: 400; }
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .wp-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+    height: calc(100vh - 60px);
+  }
+  .wp-chat-side {
+    border-right: none;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    max-height: 300px;
+  }
+  .wp-chat-messages { max-height: 180px; }
+}
+
+@media (max-width: 480px) {
+  .wp-controls { flex-wrap: wrap; gap: 8px; }
+  .wp-controls .btn { flex: 1; min-width: 80px; }
+}
