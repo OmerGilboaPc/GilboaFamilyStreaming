@@ -188,6 +188,8 @@ function selectProfile(pid, profile) {
   showScreen('appScreen');
   loadAll();
   checkNotifications();
+  // Watch Party + Broadcast init
+  if (window.wpInit) window.wpInit({ id: pid, ...profile });
 }
 
 // ── Profiles Manager ─────────────────────────────────────────
@@ -349,6 +351,10 @@ function buildCard(id, item, type) {
               title="${inWishlist ? 'הסר מהרשימה' : 'הוסף לרשימה'}">
         ${inWishlist ? '❤️' : '🤍'}
       </button>
+      ${type === 'movie' && item.video ? `
+        <button class="watch-party-btn" title="Watch Party">
+          🎬 Watch Party
+        </button>` : ''}
     </div>
     <div class="card-body">
       <div class="card-title">${item.title}</div>
@@ -372,6 +378,14 @@ function buildCard(id, item, type) {
   card.querySelector('.wishlist-btn').addEventListener('click', e => {
     e.stopPropagation();
     toggleWishlist(id, item, type, e.currentTarget);
+  });
+
+  // Watch Party button
+  card.querySelector('.watch-party-btn')?.addEventListener('click', e => {
+    e.stopPropagation();
+    if (window.wpCreateParty) {
+      window.wpCreateParty(id, item.title, item.video);
+    }
   });
 
   // Open details
