@@ -608,65 +608,125 @@ window.addEventListener('clearHistory', async () => {
 });
 
 // ── 🔔 Notifications ─────────────────────────────────────────
+// מבנה Firebase:
+//   /notifications/{id} = { title, body, icon, createdAt, expiresAt, type:'custom'|'content' }
+//   /users/{uid}/profiles/{pid}/lastSeen = timestamp
+//   /users/{uid}/profiles/{pid}/readNotifs/{notifId} = true
+
+let notifUnsub = null;
+
 async function checkNotifications() {
   if (!currentProfile) return;
-  const lastSeenRef  = ref(db, `users/${currentUser.uid}/profiles/${currentProfile.id}/lastSeen`);
-  const lastSeenSnap = await get(lastSeenRef);
-  const lastSeen     = lastSeenSnap.val() || 0;
 
-  // Update lastSeen to now
+  // Update lastSeen
+  const lastSeenRef = ref(db, `users/${currentUser.uid}/profiles/${currentProfile.id}/lastSeen`);
+  const lastSeenSnap = await get(lastSeenRef);
+  const lastSeen = lastSeenSnap.val() || 0;
   await set(lastSeenRef, Date.now());
 
-  // Collect new items since lastSeen
-  const newItems = [
-    ...Object.entries(allMovies).filter(([, m]) => (m.createdAt || 0) > lastSeen).map(([id, m]) => ({ id, ...m, type: 'movie' })),
-    ...Object.entries(allSeries).filter(([, s]) => (s.createdAt || 0) > lastSeen).map(([id, s]) => ({ id, ...s, type: 'series' })),
-  ].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  // Listen to /notifications in real-time
+  if (notifUnsub) notifUnsub();
+  notifUnsub = onValue(ref(db, 'notifications'), async snap => {
+    const allNotifs = snap.val() || {};
+    const now = Date.now();
 
-  const badge = $('notifBadge');
-  const panel = $('notifPanel');
+    // Read status for this profile
+    const readSnap = await get(ref(db, `users/${currentUser.uid}/profiles/${currentProfile.id}/readNotifs`));
+    const readMap = readSnap.val() || {};
 
-  if (newItems.length === 0 || lastSeen === 0) {
-    badge?.classList.add('hidden');
-    if (panel) panel.innerHTML = '<div class="notif-empty">🎉 אין התראות חדשות</div>';
-    return;
-  }
+    // Filter: not expired, not read
+    const active = Object.entries(allNotifs)
+      .filter(([nid, n]) => {
+        if (readMap[nid]) return false;                     // כבר נקרא
+        if (n.expiresAt && now > n.expiresAt) return false; // פג תוקף
+        return true;
+      })
+      .sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
 
-  // Show badge
-  if (badge) {
-    badge.textContent = newItems.length > 9 ? '9+' : newItems.length;
-    badge.classList.remove('hidden');
-  }
+    // Content notifications (חדש מאז הכניסה)
+    const newContent = [
+      ...Object.entries(allMovies).filter(([, m]) => (m.createdAt || 0) > lastSeen).map(([id, m]) => ({ id, ...m, type: 'movie' })),
+      ...Object.entries(allSeries).filter(([, s]) => (s.createdAt || 0) > lastSeen).map(([id, s]) => ({ id, ...s, type: 'series' })),
+    ].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-  // Fill panel
-  if (panel) {
-    panel.innerHTML = `
-      <div class="notif-panel-head">
-        <span>🔔 חדש מאז הכניסה האחרונה</span>
-        <span class="badge badge-red">${newItems.length}</span>
-      </div>
-    `;
-    newItems.slice(0, 8).forEach(item => {
-      const row = el('div', 'notif-item');
-      row.innerHTML = `
-        <img src="${item.poster || ''}" alt="${item.title}"
-             onerror="this.style.background='#1a1a28'; this.src='';" />
-        <div class="notif-item-info">
-          <div class="notif-item-title">${item.title}</div>
-          <div class="notif-item-sub">${item.type === 'movie' ? '🎬 סרט חדש' : '📺 סדרה חדשה'} • ${timeAgo(item.createdAt)}</div>
-        </div>
-      `;
-      row.addEventListener('click', () => {
-        panel.classList.add('hidden');
-        openDetails(item.id, item, item.type);
+    const totalCount = active.length + (lastSeen > 0 ? newContent.length : 0);
+    const badge = $('notifBadge');
+    const panel = $('notifPanel');
+
+    if (badge) {
+      if (totalCount > 0) {
+        badge.textContent = totalCount > 9 ? '9+' : totalCount;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    if (!panel) return;
+    panel.innerHTML = '';
+
+    if (totalCount === 0) {
+      panel.innerHTML = '<div class="notif-empty">🎉 אין התראות חדשות</div>';
+      return;
+    }
+
+    // ── Custom notifications (מהאדמין) ──────────────────
+    if (active.length > 0) {
+      const head = document.createElement('div');
+      head.className = 'notif-panel-head';
+      head.innerHTML = `<span>📢 הודעות מהמנהל</span><span class="badge badge-red">${active.length}</span>`;
+      panel.appendChild(head);
+
+      active.forEach(([nid, n]) => {
+        const row = el('div', 'notif-item notif-item-custom');
+        row.style.cssText = 'background:rgba(229,9,20,0.05);border-bottom:1px solid rgba(229,9,20,0.1);';
+        row.innerHTML = `
+          <div style="font-size:26px;flex-shrink:0;">${n.icon || '📢'}</div>
+          <div class="notif-item-info" style="flex:1;">
+            <div class="notif-item-title">${n.title}</div>
+            <div class="notif-item-sub" style="white-space:normal;line-height:1.4;">${n.body || ''}</div>
+            <div class="notif-item-sub" style="margin-top:4px;opacity:.6;">${timeAgo(n.createdAt)}</div>
+          </div>
+          <button class="notif-dismiss-btn" data-nid="${nid}" title="סמן כנקרא"
+                  style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:4px;flex-shrink:0;">✕</button>
+        `;
+        row.querySelector('.notif-dismiss-btn').addEventListener('click', async e => {
+          e.stopPropagation();
+          await set(ref(db, `users/${currentUser.uid}/profiles/${currentProfile.id}/readNotifs/${nid}`), true);
+        });
+        panel.appendChild(row);
       });
-      panel.appendChild(row);
-    });
-  }
+    }
+
+    // ── Content notifications (תוכן חדש) ────────────────
+    if (lastSeen > 0 && newContent.length > 0) {
+      const head2 = document.createElement('div');
+      head2.className = 'notif-panel-head';
+      head2.innerHTML = `<span>✨ חדש מאז הכניסה האחרונה</span><span class="badge badge-red">${newContent.length}</span>`;
+      panel.appendChild(head2);
+
+      newContent.slice(0, 6).forEach(item => {
+        const row = el('div', 'notif-item');
+        row.innerHTML = `
+          <img src="${item.poster || ''}" alt="${item.title}"
+               onerror="this.style.background='#1a1a28'; this.src='';" />
+          <div class="notif-item-info">
+            <div class="notif-item-title">${item.title}</div>
+            <div class="notif-item-sub">${item.type === 'movie' ? '🎬 סרט חדש' : '📺 סדרה חדשה'} • ${timeAgo(item.createdAt)}</div>
+          </div>
+        `;
+        row.addEventListener('click', () => {
+          panel.classList.add('hidden');
+          openDetails(item.id, item, item.type);
+        });
+        panel.appendChild(row);
+      });
+    }
+  });
 }
 
 window.addEventListener('notifOpened', () => {
-  $('notifBadge')?.classList.add('hidden');
+  // לא מסיר את ה-badge — הוא ייעלם רק כשקוראים/פג תוקף
 });
 
 // ── Details Modal ────────────────────────────────────────────
