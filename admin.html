@@ -236,6 +236,7 @@
     <button class="admin-nav-tab" data-panel="episodes">🎞 פרקים</button>
     <button class="admin-nav-tab" data-panel="requests">📩 בקשות</button>
     <button class="admin-nav-tab" data-panel="users">👥 משתמשים</button>
+    <button class="admin-nav-tab" data-panel="notifications">🔔 התראות</button>
   </div>
 
   <div class="container">
@@ -490,6 +491,87 @@
         <h2>👥 משתמשים ופרופילים</h2>
       </div>
       <div id="adminUsersList" class="stack"></div>
+    </div>
+
+    <!-- ── Panel: Notifications ───────────────────────── -->
+    <div class="admin-panel" id="panel-notifications">
+      <div class="section-head" style="margin-top:8px;">
+        <h2>🔔 ניהול התראות</h2>
+      </div>
+      <div class="admin-grid">
+
+        <!-- שליחת התראה -->
+        <section class="glass admin-card">
+          <h3 style="margin-bottom:18px;">➕ שלח התראה חדשה</h3>
+          <div class="form-grid" style="gap:14px;">
+
+            <div class="field-group">
+              <div class="field-label">כותרת *</div>
+              <input id="notifTitle" placeholder="למשל: סרט חדש נוסף!" />
+            </div>
+
+            <div class="field-group">
+              <div class="field-label">תוכן ההודעה *</div>
+              <textarea id="notifBody" placeholder="פירוט ההתראה..." style="min-height:80px;"></textarea>
+            </div>
+
+            <div class="form-row">
+              <div class="field-group">
+                <div class="field-label">אייקון (אימוג'י)</div>
+                <input id="notifIcon" placeholder="📢" style="font-size:20px;" maxlength="4" />
+              </div>
+              <div class="field-group">
+                <div class="field-label">תפוגה — כמה זמן?</div>
+                <select id="notifExpiry">
+                  <option value="1">שעה אחת</option>
+                  <option value="6">6 שעות</option>
+                  <option value="24" selected>יום אחד</option>
+                  <option value="48">יומיים</option>
+                  <option value="72">3 ימים</option>
+                  <option value="168">שבוע</option>
+                  <option value="720">חודש</option>
+                  <option value="0">ללא תפוגה</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Preview -->
+            <div id="notifPreview" style="
+              background:rgba(229,9,20,0.06);border:1px solid rgba(229,9,20,0.18);
+              border-radius:14px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start;
+              min-height:60px;
+            ">
+              <span id="notifPreviewIcon" style="font-size:28px;line-height:1;">📢</span>
+              <div>
+                <div id="notifPreviewTitle" style="font-weight:800;font-size:15px;color:#fff;">כותרת ההתראה</div>
+                <div id="notifPreviewBody" style="font-size:13px;color:var(--muted);margin-top:4px;line-height:1.5;">תוכן ההודעה יופיע כאן...</div>
+              </div>
+            </div>
+
+          </div>
+          <button id="sendNotifBtn" class="btn btn-primary" style="margin-top:16px;width:100%;">
+            📢 שלח התראה לכולם
+          </button>
+          <div id="notifSuccess" class="admin-success">✅ ההתראה נשלחה בהצלחה!</div>
+        </section>
+
+        <!-- התראות פעילות -->
+        <section class="glass admin-card">
+          <div class="section-head" style="margin:0 0 16px;">
+            <h3>📋 התראות פעילות</h3>
+            <button id="refreshNotifBtn" class="btn btn-secondary" style="font-size:12px;padding:7px 12px;">🔄 רענן</button>
+          </div>
+          <div id="activeNotifList" class="stack"></div>
+        </section>
+
+      </div>
+
+      <!-- היסטוריית התראות -->
+      <div class="section-head" style="margin-top:28px;">
+        <h2>📜 היסטוריית התראות</h2>
+        <button id="clearOldNotifsBtn" class="btn btn-secondary" style="font-size:12px;padding:7px 12px;">🗑 מחק פגי תוקף</button>
+      </div>
+      <div id="notifHistoryList" class="stack" style="margin-bottom:40px;"></div>
     </div>
 
   </div><!-- /container -->
