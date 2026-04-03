@@ -1,16 +1,17 @@
 // ============================================================
-//  GILBOASTREAMFAMILY — admin.js v3.0
-//  פיצ'רים: טריילרים, סטטיסטיקות, createdAt אוטומטי,
-//           ניהול סרטים/סדרות/פרקים/בקשות/משתמשים
+//  GILBOASTREAMFAMILY — app.js v3.0
+//  פיצ'רים: wishlist, history, notifications, trailer, PIN,
+//           "חדש השבוע", המלצות, מיון, המשך צפייה
 // ============================================================
 
-import { initializeApp }  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut }
-                          from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { initializeApp }       from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword,
+         createUserWithEmailAndPassword, signOut }
+                                from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getDatabase, ref, onValue, set, push, remove, update, get }
-                          from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+                                from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-// ── 🔧 Firebase Config — אותו config כמו ב-app.js ──────────
+// ── 🔧 Firebase Config — החלף בשלך ──────────────────────────
 const firebaseConfig = {
   apiKey:            "AIzaSyCPDS6U9LokVN-f4uQj9rdaWuCnut72bts",
   authDomain:        "netflixfamilystreaming-b0ca4.firebaseapp.com",
@@ -21,843 +22,1190 @@ const firebaseConfig = {
   appId:             "1:116100612969:web:29387c89e455e36d8373f8"
 };
 
-const ADMIN_EMAIL = "omergilboapc@gmail.com";
-
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getDatabase(app);
 
+const ADMIN_EMAIL = "omergilboapc@gmail.com";
+const NEW_DAYS    = 7; // כמה ימים נחשב "חדש"
+
 // ── State ────────────────────────────────────────────────────
-let allMovies   = {};
-let allSeries   = {};
-let allEpisodes = {};
-let allRequests = {};
-let allUsers    = {};
+let currentUser    = null;
+let currentProfile = null;
+let allMovies      = {};
+let allSeries      = {};
+let allEpisodes    = {};
+let wishlist       = {};   // { itemId: { type, id, addedAt } }
+let watchHistory   = [];   // [{ id, type, title, poster, watchedAt, ... }]
+let continueData   = {};   // { itemId: { progress, timestamp, ... } }
+let currentWishlistFilter = 'all';
+let unsubscribers  = [];
 
 // ── Helpers ──────────────────────────────────────────────────
-const $ = id => document.getElementById(id);
+const $  = id => document.getElementById(id);
+const el = (tag, cls, html) => {
+  const e = document.createElement(tag);
+  if (cls)  e.className   = cls;
+  if (html) e.innerHTML   = html;
+  return e;
+};
 
-function showToast(msg, type = 'info') {
-  // fallback toast אם אין container
-  let container = document.getElementById('toastContainer');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'toastContainer';
-    container.style.cssText = 'position:fixed;bottom:28px;left:28px;z-index:9999;display:flex;flex-direction:column;gap:10px;';
-    document.body.appendChild(container);
-  }
-  const icons  = { success: '✅', error: '❌', info: 'ℹ️' };
-  const colors = { success: 'rgba(34,197,94,0.15)', error: 'rgba(229,9,20,0.15)', info: 'rgba(255,255,255,0.06)' };
-  const t = document.createElement('div');
-  t.style.cssText = `
-    background:${colors[type]};border:1px solid rgba(255,255,255,0.1);border-radius:14px;
-    padding:14px 18px;font-size:14px;font-weight:600;color:#fff;
-    box-shadow:0 8px 32px rgba(0,0,0,.5);display:flex;align-items:center;
-    gap:10px;min-width:220px;max-width:340px;font-family:Heebo,sans-serif;
-    animation:toastIn .3s cubic-bezier(.16,1,.3,1);
-  `;
-  t.innerHTML = `<span>${icons[type] || ''}</span><span>${msg}</span>`;
-  container.appendChild(t);
-  setTimeout(() => t.remove(), 3200);
+function showScreen(id) {
+  ['authScreen','profilesScreen','appScreen'].forEach(s => {
+    $(s)?.classList.toggle('hidden', s !== id);
+  });
 }
 
-function val(id) { return $(id)?.value.trim() || ''; }
-function clear(...ids) { ids.forEach(id => { if ($(id)) $(id).value = ''; }); }
+function isNew(item) {
+  if (!item.createdAt) return false;
+  const diff = Date.now() - item.createdAt;
+  return diff < NEW_DAYS * 24 * 60 * 60 * 1000;
+}
 
 function timeAgo(ts) {
-  if (!ts) return '';
-  const d = Math.floor((Date.now() - ts) / 86400000);
-  if (d === 0) return 'היום';
-  if (d === 1) return 'אתמול';
+  const diff = Date.now() - ts;
+  const m = Math.floor(diff / 60000);
+  const h = Math.floor(diff / 3600000);
+  const d = Math.floor(diff / 86400000);
+  if (m < 2)  return 'עכשיו';
+  if (m < 60) return `לפני ${m} דקות`;
+  if (h < 24) return `לפני ${h} שעות`;
   return `לפני ${d} ימים`;
 }
 
-// ── Auth Guard ────────────────────────────────────────────────
+function formatDate(ts) {
+  return new Date(ts).toLocaleDateString('he-IL', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+
+// ── Splash ───────────────────────────────────────────────────
+setTimeout(() => {
+  const splash = $('splash');
+  if (splash) {
+    splash.style.transition = 'opacity 0.6s ease';
+    splash.style.opacity    = '0';
+    setTimeout(() => splash.remove(), 700);
+  }
+}, 2200);
+
+// ── Auth Tabs ────────────────────────────────────────────────
+let authMode = 'login';
+document.querySelectorAll('[data-auth-mode]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    authMode = btn.dataset.authMode;
+    document.querySelectorAll('[data-auth-mode]').forEach(b =>
+      b.classList.toggle('active', b.dataset.authMode === authMode));
+    $('authActionBtn').textContent = authMode === 'login' ? 'התחברות' : 'הרשמה';
+    $('authError').textContent = '';
+  });
+});
+
+$('authActionBtn')?.addEventListener('click', async () => {
+  const email = $('authEmail').value.trim();
+  const pass  = $('authPassword').value.trim();
+  $('authError').textContent = '';
+  try {
+    if (authMode === 'login') {
+      await signInWithEmailAndPassword(auth, email, pass);
+    } else {
+      await createUserWithEmailAndPassword(auth, email, pass);
+    }
+  } catch (e) {
+    $('authError').textContent = e.message;
+  }
+});
+
+// ── Auth State ───────────────────────────────────────────────
 onAuthStateChanged(auth, user => {
-  if (!user || user.email !== ADMIN_EMAIL) {
-    showToast('גישה מותרת לאדמין בלבד', 'error');
-    setTimeout(() => window.location.href = 'index.html', 1800);
-    return;
+  currentUser = user;
+  if (user) {
+    showScreen('profilesScreen');
+    loadProfiles();
+  } else {
+    currentProfile = null;
+    showScreen('authScreen');
+    unsubscribers.forEach(u => u());
+    unsubscribers = [];
   }
-  initAdmin();
 });
 
-// ── Init ──────────────────────────────────────────────────────
-function initAdmin() {
-  loadMovies();
-  loadSeries();
-  loadEpisodes();
-  loadRequests();
-  loadUsers();
+$('signOutBtn')?.addEventListener('click',         () => signOut(auth));
+$('signOutProfilesBtn')?.addEventListener('click', () => signOut(auth));
+$('switchProfileBtn')?.addEventListener('click',   () => {
+  currentProfile = null;
+  showScreen('profilesScreen');
+  loadProfiles();
+});
+
+// ── Profiles ─────────────────────────────────────────────────
+function loadProfiles() {
+  const grid = $('profilesGrid');
+  if (!grid || !currentUser) return;
+  get(ref(db, `users/${currentUser.uid}/profiles`)).then(snap => {
+    const profiles = snap.val() || {};
+    grid.innerHTML = '';
+
+    Object.entries(profiles).forEach(([pid, profile]) => {
+      const card = el('div', 'profile-card');
+      card.innerHTML = `
+        <div class="profile-avatar">${profile.avatar || '🎬'}</div>
+        <div class="profile-name">${profile.name}</div>
+        ${profile.pin ? '<div class="small muted" style="margin-top:4px;">🔒 מוגן</div>' : ''}
+      `;
+      card.addEventListener('click', () => {
+        if (profile.pin) {
+          window.openPinModal(profile.name, profile.avatar || '🎬', 4, entered => {
+            if (entered === profile.pin) {
+              selectProfile(pid, profile);
+              return true;
+            }
+            return false;
+          });
+        } else {
+          selectProfile(pid, profile);
+        }
+      });
+      grid.appendChild(card);
+    });
+
+    // Add new profile card
+    const addCard = el('div', 'profile-card', `
+      <div class="profile-avatar" style="font-size:32px; color:var(--muted);">➕</div>
+      <div class="profile-name" style="color:var(--muted);">הוסף פרופיל</div>
+    `);
+    addCard.style.cursor = 'pointer';
+    addCard.addEventListener('click', () => openModal('profilesModal'));
+    grid.appendChild(addCard);
+  });
 }
 
-// ══════════════════════════════════════════════════════════════
-//  🎬 MOVIES
-// ══════════════════════════════════════════════════════════════
-function loadMovies() {
-  onValue(ref(db, 'movies'), snap => {
+function selectProfile(pid, profile) {
+  currentProfile = { id: pid, ...profile };
+  $('activeProfileLabel').textContent = profile.name;
+  $('adminBtn').classList.toggle('hidden', currentUser.email !== ADMIN_EMAIL);
+  showScreen('appScreen');
+  loadAll();
+  checkNotifications();
+}
+
+// ── Profiles Manager ─────────────────────────────────────────
+$('openProfilesManagerBtn')?.addEventListener('click', () => openModal('profilesModal'));
+
+$('addProfileBtn')?.addEventListener('click', async () => {
+  const name   = $('newProfileName').value.trim();
+  const avatar = $('newProfileAvatar').value.trim() || '🎬';
+  const pin    = $('newProfilePin')?.value.trim() || '';
+  if (!name) return;
+  const profileData = { name, avatar, createdAt: Date.now() };
+  if (pin.length === 4 && /^\d{4}$/.test(pin)) profileData.pin = pin;
+  await push(ref(db, `users/${currentUser.uid}/profiles`), profileData);
+  $('newProfileName').value  = '';
+  $('newProfileAvatar').value = '';
+  if ($('newProfilePin')) $('newProfilePin').value = '';
+  loadProfilesManageList();
+  loadProfiles();
+  window.showToast('פרופיל נוסף!', 'success');
+});
+
+function loadProfilesManageList() {
+  const list = $('profilesManageList');
+  if (!list || !currentUser) return;
+  get(ref(db, `users/${currentUser.uid}/profiles`)).then(snap => {
+    const profiles = snap.val() || {};
+    list.innerHTML = '';
+    Object.entries(profiles).forEach(([pid, p]) => {
+      const item = el('div', 'request-card');
+      item.innerHTML = `
+        <span style="font-size:24px;">${p.avatar || '🎬'}</span>
+        <span style="flex:1; font-weight:700;">${p.name}</span>
+        ${p.pin ? '<span class="badge">🔒 PIN</span>' : ''}
+        <button class="btn btn-secondary small" style="padding:6px 10px; font-size:12px;" data-del="${pid}">🗑</button>
+      `;
+      item.querySelector('[data-del]').addEventListener('click', async () => {
+        await remove(ref(db, `users/${currentUser.uid}/profiles/${pid}`));
+        loadProfilesManageList();
+        loadProfiles();
+        window.showToast('פרופיל נמחק', 'info');
+      });
+      list.appendChild(item);
+    });
+  });
+}
+
+$('openProfilesManagerBtn')?.addEventListener('click', loadProfilesManageList);
+
+// ── Load All Data ────────────────────────────────────────────
+function loadAll() {
+  unsubscribers.forEach(u => u());
+  unsubscribers = [];
+
+  // Movies
+  const moviesUnsub = onValue(ref(db, 'movies'), snap => {
     allMovies = snap.val() || {};
-    renderMoviesList();
+    renderMovies();
+    renderNewThisWeek();
     updateStats();
-    populateEpisodeSeriesSelects();
+    renderWishlist();
   });
-}
+  unsubscribers.push(moviesUnsub);
 
-$('addMovieBtn')?.addEventListener('click', async () => {
-  const title       = val('movieTitle');
-  const poster      = val('moviePoster');
-  const video       = val('movieVideo');
-  const trailer     = val('movieTrailer');
-  const category    = val('movieCategory');
-  const year        = val('movieYear');
-  const description = val('movieDescription');
-
-  if (!title) { showToast('שם הסרט חובה', 'error'); return; }
-
-  const data = {
-    title,
-    createdAt: Date.now(),   // ← חשוב לפיצ'ר "חדש השבוע" ו-notifications
-    ...(poster      && { poster }),
-    ...(video       && { video }),
-    ...(trailer     && { trailer }),
-    ...(category    && { category }),
-    ...(year        && { year: +year }),
-    ...(description && { description }),
-  };
-
-  await push(ref(db, 'movies'), data);
-  clear('movieTitle','moviePoster','movieVideo','movieTrailer','movieCategory','movieYear','movieDescription');
-  showAdminSuccess('movieSuccess');
-  showToast(`"${title}" נוסף!`, 'success');
-});
-
-function renderMoviesList() {
-  const list = $('adminMoviesList');
-  if (!list) return;
-  list.innerHTML = '';
-
-  const entries = Object.entries(allMovies)
-    .sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
-
-  if (entries.length === 0) {
-    list.innerHTML = '<div class="muted small" style="padding:12px;">אין סרטים עדיין</div>';
-    return;
-  }
-
-  entries.forEach(([id, movie]) => {
-    const item = document.createElement('div');
-    item.className = 'admin-item';
-    item.innerHTML = `
-      <img class="admin-item-poster"
-           src="${movie.poster || ''}"
-           alt="${movie.title}"
-           onerror="this.style.background='#1a1a28'; this.src='';" />
-      <div class="admin-item-info">
-        <div class="admin-item-title">${movie.title}</div>
-        <div class="admin-item-meta">
-          ${movie.category ? movie.category + ' • ' : ''}
-          ${movie.year     ? movie.year + ' • '     : ''}
-          ${timeAgo(movie.createdAt)}
-        </div>
-        <div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">
-          ${movie.video   ? '<span class="badge" style="font-size:10px;">▶ וידאו</span>'    : ''}
-          ${movie.trailer ? '<span class="has-trailer-badge">🎬 טריילר</span>'               : ''}
-        </div>
-      </div>
-      <div style="display:flex; flex-direction:column; gap:6px;">
-        <button class="btn btn-secondary" style="padding:7px 10px; font-size:12px;"
-                data-edit-movie="${id}">✏️ ערוך</button>
-        <button class="btn btn-danger" style="padding:7px 10px; font-size:12px;"
-                data-del-movie="${id}">🗑</button>
-      </div>
-    `;
-
-    item.querySelector(`[data-del-movie="${id}"]`).addEventListener('click', async () => {
-      if (!confirm(`למחוק את "${movie.title}"?`)) return;
-      await remove(ref(db, `movies/${id}`));
-      showToast(`"${movie.title}" נמחק`, 'info');
-    });
-
-    item.querySelector(`[data-edit-movie="${id}"]`).addEventListener('click', () => {
-      openEditModal('movie', id, movie);
-    });
-
-    list.appendChild(item);
-  });
-}
-
-// ══════════════════════════════════════════════════════════════
-//  📺 SERIES
-// ══════════════════════════════════════════════════════════════
-function loadSeries() {
-  onValue(ref(db, 'series'), snap => {
+  // Series
+  const seriesUnsub = onValue(ref(db, 'series'), snap => {
     allSeries = snap.val() || {};
-    renderSeriesList();
+    renderSeries();
+    renderNewThisWeek();
     updateStats();
-    populateEpisodeSeriesSelects();
+    renderWishlist();
   });
-}
+  unsubscribers.push(seriesUnsub);
 
-$('addSeriesBtn')?.addEventListener('click', async () => {
-  const title       = val('seriesTitle');
-  const poster      = val('seriesPoster');
-  const trailer     = val('seriesTrailer');
-  const category    = val('seriesCategory');
-  const year        = val('seriesYear');
-  const description = val('seriesDescription');
-
-  if (!title) { showToast('שם הסדרה חובה', 'error'); return; }
-
-  const data = {
-    title,
-    createdAt: Date.now(),
-    ...(poster      && { poster }),
-    ...(trailer     && { trailer }),
-    ...(category    && { category }),
-    ...(year        && { year: +year }),
-    ...(description && { description }),
-  };
-
-  await push(ref(db, 'series'), data);
-  clear('seriesTitle','seriesPoster','seriesTrailer','seriesCategory','seriesYear','seriesDescription');
-  showAdminSuccess('seriesSuccess');
-  showToast(`"${title}" נוסף!`, 'success');
-});
-
-function renderSeriesList() {
-  const list = $('adminSeriesList');
-  if (!list) return;
-  list.innerHTML = '';
-
-  const entries = Object.entries(allSeries)
-    .sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
-
-  if (entries.length === 0) {
-    list.innerHTML = '<div class="muted small" style="padding:12px;">אין סדרות עדיין</div>';
-    return;
-  }
-
-  entries.forEach(([id, series]) => {
-    const epCount = Object.values(allEpisodes)
-      .filter(ep => ep.seriesId === id).length;
-
-    const item = document.createElement('div');
-    item.className = 'admin-item';
-    item.innerHTML = `
-      <img class="admin-item-poster"
-           src="${series.poster || ''}"
-           alt="${series.title}"
-           onerror="this.style.background='#1a1a28'; this.src='';" />
-      <div class="admin-item-info">
-        <div class="admin-item-title">${series.title}</div>
-        <div class="admin-item-meta">
-          ${series.category ? series.category + ' • ' : ''}
-          ${series.year ? series.year + ' • ' : ''}
-          ${epCount} פרקים •
-          ${timeAgo(series.createdAt)}
-        </div>
-        <div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">
-          ${series.trailer ? '<span class="has-trailer-badge">🎬 טריילר</span>' : ''}
-        </div>
-      </div>
-      <div style="display:flex; flex-direction:column; gap:6px;">
-        <button class="btn btn-secondary" style="padding:7px 10px; font-size:12px;"
-                data-edit-series="${id}">✏️ ערוך</button>
-        <button class="btn btn-danger" style="padding:7px 10px; font-size:12px;"
-                data-del-series="${id}">🗑</button>
-      </div>
-    `;
-
-    item.querySelector(`[data-del-series="${id}"]`).addEventListener('click', async () => {
-      if (!confirm(`למחוק את "${series.title}" וכל הפרקים שלה?`)) return;
-      await remove(ref(db, `series/${id}`));
-      // מחק גם פרקים משויכים
-      const toDelete = Object.entries(allEpisodes)
-        .filter(([, ep]) => ep.seriesId === id)
-        .map(([eid]) => eid);
-      await Promise.all(toDelete.map(eid => remove(ref(db, `episodes/${eid}`))));
-      showToast(`"${series.title}" נמחקה`, 'info');
-    });
-
-    item.querySelector(`[data-edit-series="${id}"]`).addEventListener('click', () => {
-      openEditModal('series', id, series);
-    });
-
-    list.appendChild(item);
-  });
-}
-
-// ══════════════════════════════════════════════════════════════
-//  🎞 EPISODES
-// ══════════════════════════════════════════════════════════════
-function loadEpisodes() {
-  // פרקים חיים בתוך series/{id}/seasons/{n}/episodes/{n}
-  // לא collection נפרד — loadSeries כבר טוען הכל
-  // כאן רק מרנדרים את הרשימה
-  renderEpisodesList();
-}
-
-function populateEpisodeSeriesSelects() {
-  ['episodeSeriesSelect', 'episodeFilterSelect'].forEach(selectId => {
-    const sel = $(selectId);
-    if (!sel) return;
-    const current = sel.value;
-    sel.innerHTML = selectId === 'episodeFilterSelect'
-      ? '<option value="">כל הסדרות</option>'
-      : '';
-    Object.entries(allSeries)
-      .sort((a, b) => a[1].title.localeCompare(b[1].title, 'he'))
-      .forEach(([id, s]) => {
-        const opt = document.createElement('option');
-        opt.value       = id;
-        opt.textContent = s.title;
-        sel.appendChild(opt);
-      });
-    if (current) sel.value = current;
-  });
-}
-
-$('addEpisodeBtn')?.addEventListener('click', async () => {
-  const seriesId    = val('episodeSeriesSelect');
-  const season      = +val('episodeSeason');
-  const number      = +val('episodeNumber');
-  const title       = val('episodeTitle');
-  const poster      = val('episodePoster');
-  const video       = val('episodeVideo');
-  const description = val('episodeDescription');
-
-  if (!seriesId) { showToast('בחר סדרה', 'error'); return; }
-  if (!season)   { showToast('הכנס מספר עונה', 'error'); return; }
-  if (!number)   { showToast('הכנס מספר פרק', 'error'); return; }
-  if (!title)    { showToast('שם הפרק חובה', 'error'); return; }
-  if (!video)    { showToast('קישור וידאו חובה', 'error'); return; }
-
-  // כתיבה למבנה: series/{seriesId}/seasons/{season}/episodes/{number}
-  const epData = {
-    title,
-    video,
-    updatedAt: Date.now(),
-    ...(poster      && { poster }),
-    ...(description && { description }),
-  };
-
-  await set(
-    ref(db, `series/${seriesId}/seasons/${season}/episodes/${number}`),
-    epData
-  );
-  clear('episodeSeason','episodeNumber','episodeTitle','episodePoster','episodeVideo','episodeDescription');
-  showAdminSuccess('episodeSuccess');
-  showToast(`פרק "${title}" נוסף!`, 'success');
-});
-
-function renderEpisodesList() {
-  const list = $('adminEpisodesList');
-  if (!list) return;
-  list.innerHTML = '';
-
-  const filterSeries = $('episodeFilterSelect')?.value || '';
-
-  // בנה רשימה שטוחה מ-series/{id}/seasons/{n}/episodes/{n}
-  const entries = [];
-  Object.entries(allSeries).forEach(([sid, s]) => {
-    if (filterSeries && sid !== filterSeries) return;
-    const seasons = s.seasons || {};
-    Object.entries(seasons).forEach(([seasonNum, seasonObj]) => {
-      const eps = seasonObj.episodes || {};
-      Object.entries(eps).forEach(([epNum, ep]) => {
-        entries.push({ sid, seasonNum: +seasonNum, epNum: +epNum, ep, seriesTitle: s.title });
+  // Episodes — מבנה: series/{id}/seasons/{n}/episodes/{n}
+  // הפרקים נטענים מתוך allSeries ישירות, לא collection נפרד
+  // allEpisodes משמש לספירה בלבד — נבנה מ-allSeries
+  const epsUnsub = onValue(ref(db, 'series'), snap => {
+    const seriesData = snap.val() || {};
+    // ספור פרקים מכל הסדרות
+    let count = 0;
+    Object.values(seriesData).forEach(s => {
+      const seasons = s.seasons || {};
+      Object.values(seasons).forEach(season => {
+        const eps = season.episodes || {};
+        count += Object.keys(eps).length;
       });
     });
-  });
-
-  entries.sort((a, b) => {
-    if (a.seriesTitle !== b.seriesTitle) return a.seriesTitle.localeCompare(b.seriesTitle, 'he');
-    if (a.seasonNum !== b.seasonNum) return a.seasonNum - b.seasonNum;
-    return a.epNum - b.epNum;
-  });
-
-  if (entries.length === 0) {
-    list.innerHTML = '<div class="muted small" style="padding:12px;">אין פרקים</div>';
-    return;
-  }
-
-  entries.forEach(({ sid, seasonNum, epNum, ep, seriesTitle }) => {
-    const item = document.createElement('div');
-    item.className = 'admin-item';
-    item.innerHTML = `
-      <img src="${ep.poster || ''}" alt="${ep.title || ''}"
-           style="width:64px;height:40px;object-fit:cover;border-radius:7px;background:#1a1a28;flex-shrink:0;"
-           onerror="this.style.background='#1a1a28'; this.src='';" />
-      <div class="admin-item-info">
-        <div class="admin-item-title" style="font-size:13px;">
-          עונה ${seasonNum} • פרק ${epNum}${ep.title ? ' — ' + ep.title : ''}
-        </div>
-        <div class="admin-item-meta">${seriesTitle}</div>
-      </div>
-      <button class="btn btn-danger" style="padding:7px 10px; font-size:12px; flex-shrink:0;"
-              data-del-ep="true">🗑</button>
-    `;
-
-    item.querySelector('[data-del-ep]').addEventListener('click', async () => {
-      if (!confirm(`למחוק פרק ${epNum} עונה ${seasonNum}?`)) return;
-      await remove(ref(db, `series/${sid}/seasons/${seasonNum}/episodes/${epNum}`));
-      showToast('פרק נמחק', 'info');
-    });
-
-    list.appendChild(item);
-  });
-}
-
-$('episodeFilterSelect')?.addEventListener('change', renderEpisodesList);
-
-// ══════════════════════════════════════════════════════════════
-//  📩 REQUESTS
-// ══════════════════════════════════════════════════════════════
-function loadRequests() {
-  onValue(ref(db, 'requests'), snap => {
-    allRequests = snap.val() || {};
-    renderRequests();
+    allEpisodes = { _count: count }; // just for stats
     updateStats();
   });
-}
+  unsubscribers.push(epsUnsub);
 
-function renderRequests() {
-  const list = $('adminRequestsList');
-  if (!list) return;
-  list.innerHTML = '';
+  // Wishlist (per profile)
+  if (currentProfile) {
+    const wlUnsub = onValue(
+      ref(db, `users/${currentUser.uid}/profiles/${currentProfile.id}/wishlist`), snap => {
+        wishlist = snap.val() || {};
+        renderWishlist();
+        updateWishlistBtns();
+      });
+    unsubscribers.push(wlUnsub);
 
-  const entries = Object.entries(allRequests)
-    .sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
+    // Continue watching
+    const contUnsub = onValue(
+      ref(db, `users/${currentUser.uid}/profiles/${currentProfile.id}/continue`), snap => {
+        continueData = snap.val() || {};
+        renderContinue();
+      });
+    unsubscribers.push(contUnsub);
 
-  if (entries.length === 0) {
-    list.innerHTML = '<div class="muted small" style="padding:12px;">אין בקשות פתוחות 🎉</div>';
-    return;
+    // History
+    const histUnsub = onValue(
+      ref(db, `users/${currentUser.uid}/profiles/${currentProfile.id}/history`), snap => {
+        const raw = snap.val() || {};
+        watchHistory = Object.values(raw).sort((a, b) => b.watchedAt - a.watchedAt);
+        renderHistory();
+      });
+    unsubscribers.push(histUnsub);
   }
-
-  entries.forEach(([rid, req]) => {
-    const item = document.createElement('div');
-    item.className = 'admin-item';
-    item.innerHTML = `
-      <div style="flex:1; min-width:0;">
-        <div style="font-weight:700; font-size:15px;">${req.title}</div>
-        <div class="small muted" style="margin-top:4px;">
-          👤 ${req.user} • ${timeAgo(req.createdAt)}
-        </div>
-        ${req.note ? `<div class="small muted" style="margin-top:4px;">💬 ${req.note}</div>` : ''}
-      </div>
-      <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
-        <button class="btn btn-secondary" style="padding:7px 10px; font-size:12px;"
-                data-toggle-req="${rid}"
-                data-status="${req.status || 'pending'}">
-          ${req.status === 'done' ? '↩️ בטל' : '✅ סמן הושלם'}
-        </button>
-        <button class="btn btn-danger" style="padding:7px 10px; font-size:12px;"
-                data-del-req="${rid}">🗑</button>
-      </div>
-    `;
-
-    item.querySelector(`[data-toggle-req="${rid}"]`).addEventListener('click', async e => {
-      const newStatus = e.target.dataset.status === 'done' ? 'pending' : 'done';
-      await update(ref(db, `requests/${rid}`), { status: newStatus });
-      showToast(newStatus === 'done' ? 'סומן כהושלם' : 'סומן כממתין', 'success');
-    });
-
-    item.querySelector(`[data-del-req="${rid}"]`).addEventListener('click', async () => {
-      await remove(ref(db, `requests/${rid}`));
-      showToast('בקשה נמחקה', 'info');
-    });
-
-    list.appendChild(item);
-  });
 }
 
-$('clearDoneRequestsBtn')?.addEventListener('click', async () => {
-  const done = Object.entries(allRequests).filter(([, r]) => r.status === 'done');
-  await Promise.all(done.map(([rid]) => remove(ref(db, `requests/${rid}`))));
-  showToast(`${done.length} בקשות הושלמו נמחקו`, 'success');
-});
-
-// ══════════════════════════════════════════════════════════════
-//  👥 USERS
-// ══════════════════════════════════════════════════════════════
-function loadUsers() {
-  onValue(ref(db, 'users'), snap => {
-    allUsers = snap.val() || {};
-    renderUsers();
-    updateStats();
-  });
-}
-
-function renderUsers() {
-  const list = $('adminUsersList');
-  if (!list) return;
-  list.innerHTML = '';
-
-  const entries = Object.entries(allUsers);
-  if (entries.length === 0) {
-    list.innerHTML = '<div class="muted small" style="padding:12px;">אין משתמשים רשומים</div>';
-    return;
-  }
-
-  entries.forEach(([uid, userData]) => {
-    const profiles  = userData.profiles || {};
-    const profCount = Object.keys(profiles).length;
-
-    const item = document.createElement('div');
-    item.className = 'admin-item';
-    item.innerHTML = `
-      <div style="font-size:28px;">👤</div>
-      <div class="admin-item-info">
-        <div class="admin-item-title">${uid.slice(0, 12)}...</div>
-        <div class="admin-item-meta">${profCount} פרופילים</div>
-        <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-          ${Object.values(profiles).map(p =>
-            `<span class="badge">${p.avatar || '👤'} ${p.name}${p.pin ? ' 🔒' : ''}</span>`
-          ).join('')}
-        </div>
-      </div>
-    `;
-    list.appendChild(item);
-  });
-}
-
-// ══════════════════════════════════════════════════════════════
-//  📊 STATS (Overview panel)
-// ══════════════════════════════════════════════════════════════
+// ── Stats ────────────────────────────────────────────────────
 function updateStats() {
-  const moviesCount  = Object.keys(allMovies).length;
-  const seriesCount  = Object.keys(allSeries).length;
-  const epCount      = Object.keys(allEpisodes).length;
-  const reqCount     = Object.values(allRequests).filter(r => r.status !== 'done').length;
-  const usersCount   = Object.keys(allUsers).length;
-  const trailerCount = [
-    ...Object.values(allMovies).filter(m => m.trailer),
-    ...Object.values(allSeries).filter(s => s.trailer),
-  ].length;
-
-  const set_ = (id, val) => { if ($(id)) $(id).textContent = val; };
-  set_('statMovies',   moviesCount);
-  set_('statSeries',   seriesCount);
-  set_('statEpisodes', epCount);
-  set_('statRequests', reqCount);
-  set_('statUsers',    usersCount);
-  set_('statTrailers', trailerCount);
-
-  renderRecentContent();
-}
-
-function renderRecentContent() {
-  const list = $('recentContent');
-  if (!list) return;
-  list.innerHTML = '';
-
-  const recent = [
-    ...Object.entries(allMovies).map(([id, m]) => ({ id, ...m, _type: 'movie' })),
-    ...Object.entries(allSeries).map(([id, s]) => ({ id, ...s, _type: 'series' })),
-    ...Object.entries(allEpisodes).map(([id, ep]) => ({ id, ...ep, _type: 'episode' })),
-  ]
-  .filter(i => i.createdAt)
-  .sort((a, b) => b.createdAt - a.createdAt)
-  .slice(0, 8);
-
-  if (recent.length === 0) {
-    list.innerHTML = '<div class="muted small" style="padding:12px;">אין תוכן עדיין</div>';
-    return;
-  }
-
-  recent.forEach(item => {
-    const typeLabel = item._type === 'movie' ? '🎬 סרט'
-      : item._type === 'series' ? '📺 סדרה' : '🎞 פרק';
-    const parentSeries = item._type === 'episode'
-      ? allSeries[item.seriesId]?.title : '';
-
-    const row = document.createElement('div');
-    row.className = 'admin-item';
-    row.innerHTML = `
-      <img style="width:44px;height:60px;object-fit:cover;border-radius:8px;background:#1a1a28;flex-shrink:0;"
-           src="${item.poster || ''}"
-           alt="${item.title}"
-           onerror="this.style.background='#1a1a28'; this.src='';" />
-      <div class="admin-item-info">
-        <div class="admin-item-title">${item.title}</div>
-        <div class="admin-item-meta">
-          ${typeLabel}
-          ${parentSeries ? ' • ' + parentSeries : ''}
-          ${item.category ? ' • ' + item.category : ''}
-        </div>
-      </div>
-      <div class="small muted" style="flex-shrink:0; white-space:nowrap;">${timeAgo(item.createdAt)}</div>
-    `;
-    list.appendChild(row);
+  // ספור פרקים מכל הסדרות (מבנה series/{id}/seasons/{n}/episodes/{n})
+  let epCount = 0;
+  Object.values(allSeries).forEach(s => {
+    const seasons = s.seasons || {};
+    Object.values(seasons).forEach(season => {
+      epCount += Object.keys(season.episodes || {}).length;
+    });
   });
+  $('moviesCount').textContent   = Object.keys(allMovies).length;
+  $('seriesCount').textContent   = Object.keys(allSeries).length;
+  $('episodesCount').textContent = epCount;
 }
 
-// ══════════════════════════════════════════════════════════════
-//  ✏️ EDIT MODAL
-// ══════════════════════════════════════════════════════════════
-let editModal = null;
+// ── Build Card ───────────────────────────────────────────────
+function buildCard(id, item, type) {
+  const inWishlist = !!wishlist[id];
+  const novel      = isNew(item);
+  const progress   = continueData[id];
 
-function openEditModal(type, id, data) {
-  if (editModal) editModal.remove();
+  const card = el('div', 'card');
+  card.dataset.id   = id;
+  card.dataset.type = type;
 
-  const isMovie  = type === 'movie';
-  const isSeries = type === 'series';
+  const pct = progress
+    ? Math.round((progress.position / (progress.duration || 1)) * 100)
+    : 0;
 
-  editModal = document.createElement('div');
-  editModal.style.cssText = `
-    position:fixed;inset:0;z-index:500;display:grid;place-items:center;padding:16px;
-  `;
-  editModal.innerHTML = `
-    <div style="position:absolute;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(10px);"></div>
-    <div style="
-      position:relative;z-index:1;width:min(600px,100%);max-height:calc(100vh - 32px);
-      overflow-y:auto;background:#0f0f1a;border:1px solid rgba(255,255,255,0.08);
-      border-radius:24px;padding:28px;box-shadow:0 32px 96px rgba(0,0,0,.7);
-    ">
-      <button id="closeEditModal" style="
-        position:absolute;top:16px;left:16px;width:36px;height:36px;border-radius:10px;
-        border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.06);
-        color:#888;font-size:14px;display:grid;place-items:center;cursor:pointer;
-      ">✕</button>
-
-      <h3 style="margin-bottom:20px;">✏️ עריכת ${isMovie ? 'סרט' : 'סדרה'}: ${data.title}</h3>
-
-      <div style="display:grid;gap:12px;">
-        <div>
-          <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">שם</div>
-          <input id="editTitle" value="${data.title || ''}" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#fff;font-family:Heebo,sans-serif;" />
-        </div>
-        <div>
-          <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Poster URL</div>
-          <input id="editPoster" value="${data.poster || ''}" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#fff;font-family:Heebo,sans-serif;" />
-        </div>
-        <div>
-          <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">קטגוריה</div>
-          <input id="editCategory" value="${data.category || ''}" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#fff;font-family:Heebo,sans-serif;" />
-        </div>
-        <div>
-          <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">שנה</div>
-          <input id="editYear" type="number" value="${data.year || ''}" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#fff;font-family:Heebo,sans-serif;" />
-        </div>
-        ${isMovie ? `
-        <div>
-          <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">קישור וידאו</div>
-          <input id="editVideo" value="${data.video || ''}" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#fff;font-family:Heebo,sans-serif;" />
-        </div>` : ''}
-        <div style="background:rgba(229,9,20,0.05);border:1px solid rgba(229,9,20,0.15);border-radius:12px;padding:14px;">
-          <div style="font-size:11px;font-weight:800;color:#ff7a83;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🎬 טריילר</div>
-          <input id="editTrailer" value="${data.trailer || ''}" placeholder="https://www.youtube.com/embed/..." style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#fff;font-family:Heebo,sans-serif;" />
-        </div>
-        <div>
-          <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">תיאור</div>
-          <textarea id="editDescription" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#fff;font-family:Heebo,sans-serif;min-height:90px;resize:vertical;">${data.description || ''}</textarea>
-        </div>
+  card.innerHTML = `
+    <div class="poster-wrap">
+      <img class="poster" src="${item.poster || ''}"
+           alt="${item.title}"
+           loading="lazy"
+           onerror="this.style.background='#1a1a28'; this.src='';" />
+      ${novel ? '<div class="new-badge">חדש</div>' : ''}
+      <button class="wishlist-btn ${inWishlist ? 'in-list' : ''}"
+              title="${inWishlist ? 'הסר מהרשימה' : 'הוסף לרשימה'}">
+        ${inWishlist ? '❤️' : '🤍'}
+      </button>
+    </div>
+    <div class="card-body">
+      <div class="card-title">${item.title}</div>
+      <div class="card-meta">
+        <span class="badge">${type === 'movie' ? '🎬 סרט' : '📺 סדרה'}</span>
+        ${item.category ? `<span class="badge">${item.category}</span>` : ''}
+        ${item.year     ? `<span class="badge">${item.year}</span>`     : ''}
+        ${item.trailer  ? '<span class="badge badge-red">🎬 טריילר</span>' : ''}
       </div>
-
-      <button id="saveEditBtn" style="
-        margin-top:18px;width:100%;padding:14px;border-radius:12px;border:none;
-        background:linear-gradient(135deg,#e50914,#ff3b47);color:#fff;font-size:15px;
-        font-weight:800;cursor:pointer;font-family:Heebo,sans-serif;
-      ">💾 שמור שינויים</button>
+      ${progress && pct > 0 ? `
+        <div class="series-progress-wrap" style="margin-top:10px;">
+          <div class="series-progress-track">
+            <div class="series-progress-fill" style="width:${pct}%"></div>
+          </div>
+          <span>${pct}%</span>
+        </div>` : ''}
     </div>
   `;
 
-  document.body.appendChild(editModal);
-
-  document.getElementById('closeEditModal').addEventListener('click', () => {
-    editModal.remove();
-    editModal = null;
+  // Wishlist button
+  card.querySelector('.wishlist-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    toggleWishlist(id, item, type, e.currentTarget);
   });
 
-  document.getElementById('saveEditBtn').addEventListener('click', async () => {
-    const dbPath = isMovie ? `movies/${id}` : `series/${id}`;
-    const updates = {
-      title:       document.getElementById('editTitle').value.trim()       || data.title,
-      poster:      document.getElementById('editPoster').value.trim()      || '',
-      category:    document.getElementById('editCategory').value.trim()    || '',
-      year:        +document.getElementById('editYear').value              || null,
-      trailer:     document.getElementById('editTrailer').value.trim()     || '',
-      description: document.getElementById('editDescription').value.trim() || '',
-    };
-    if (isMovie) {
-      updates.video = document.getElementById('editVideo').value.trim() || '';
-    }
-    // Remove empty fields
-    Object.keys(updates).forEach(k => {
-      if (updates[k] === '' || updates[k] === null) delete updates[k];
-    });
-    await update(ref(db, dbPath), updates);
-    showToast('השינויים נשמרו!', 'success');
-    editModal.remove();
-    editModal = null;
-  });
+  // Open details
+  card.addEventListener('click', () => openDetails(id, item, type));
+
+  return card;
 }
 
-// ── Success message helper ────────────────────────────────────
-function showAdminSuccess(id) {
-  const el = $(id);
-  if (!el) return;
-  el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 3000);
-}
+// ── Render Movies ────────────────────────────────────────────
+function renderMovies(sortBy = 'default') {
+  const grid = $('moviesGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
 
+  let items = Object.entries(allMovies);
+  items = sortItems(items, sortBy);
 
-// ════════════════════════════════════════════════════════════
-//  🔔  NOTIFICATIONS ADMIN
-//  Firebase path: /notifications/{id}
-//  { title, body, icon, createdAt, expiresAt, sentBy }
-// ════════════════════════════════════════════════════════════
-
-// ── Live preview while typing ────────────────────────────────
-['notifTitle','notifBody','notifIcon'].forEach(id => {
-  document.getElementById(id)?.addEventListener('input', updateNotifPreview);
-});
-
-function updateNotifPreview() {
-  const title = document.getElementById('notifTitle')?.value || 'כותרת ההתראה';
-  const body  = document.getElementById('notifBody')?.value  || 'תוכן ההודעה יופיע כאן...';
-  const icon  = document.getElementById('notifIcon')?.value  || '📢';
-  const el    = id => document.getElementById(id);
-  if (el('notifPreviewTitle')) el('notifPreviewTitle').textContent = title;
-  if (el('notifPreviewBody'))  el('notifPreviewBody').textContent  = body;
-  if (el('notifPreviewIcon'))  el('notifPreviewIcon').textContent  = icon || '📢';
-}
-
-// ── Send notification ─────────────────────────────────────────
-document.getElementById('sendNotifBtn')?.addEventListener('click', async () => {
-  const title   = document.getElementById('notifTitle')?.value.trim();
-  const body    = document.getElementById('notifBody')?.value.trim();
-  const icon    = document.getElementById('notifIcon')?.value.trim() || '📢';
-  const hours   = parseInt(document.getElementById('notifExpiry')?.value || '24');
-
-  if (!title) { showToast('כותרת חובה', 'error'); return; }
-  if (!body)  { showToast('תוכן חובה',  'error'); return; }
-
-  const now      = Date.now();
-  const expiresAt = hours > 0 ? now + hours * 3600000 : null;
-
-  const data = {
-    title, body, icon,
-    createdAt: now,
-    sentBy:    auth.currentUser?.email || 'admin',
-    ...(expiresAt && { expiresAt }),
-  };
-
-  await push(ref(db, 'notifications'), data);
-
-  document.getElementById('notifTitle').value = '';
-  document.getElementById('notifBody').value  = '';
-  document.getElementById('notifIcon').value  = '';
-  updateNotifPreview();
-  showAdminSuccess('notifSuccess');
-  showToast('ההתראה נשלחה!', 'success');
-  loadNotifications();
-});
-
-// ── Load & render notifications ──────────────────────────────
-function loadNotifications() {
-  onValue(ref(db, 'notifications'), snap => {
-    const all = snap.val() || {};
-    const now = Date.now();
-
-    const active  = [];
-    const expired = [];
-
-    Object.entries(all)
-      .sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0))
-      .forEach(([nid, n]) => {
-        const isExpired = n.expiresAt && now > n.expiresAt;
-        (isExpired ? expired : active).push([nid, n]);
-      });
-
-    renderNotifList('activeNotifList',  active,  false);
-    renderNotifList('notifHistoryList', expired, true);
-  });
-}
-
-function renderNotifList(listId, entries, isHistory) {
-  const list = document.getElementById(listId);
-  if (!list) return;
-  list.innerHTML = '';
-
-  if (entries.length === 0) {
-    list.innerHTML = `<div class="muted small" style="padding:14px;">
-      ${isHistory ? 'אין התראות פגות תוקף' : 'אין התראות פעילות כרגע'}
-    </div>`;
+  if (items.length === 0) {
+    grid.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🎬</div><p>אין סרטים עדיין</p></div>';
     return;
   }
 
-  entries.forEach(([nid, n]) => {
-    const now       = Date.now();
-    const isExpired = n.expiresAt && now > n.expiresAt;
-    const timeLeft  = n.expiresAt ? formatTimeLeft(n.expiresAt - now) : 'ללא תפוגה';
+  items.forEach(([id, movie], i) => {
+    const card = buildCard(id, movie, 'movie');
+    card.style.animationDelay = `${i * 0.04}s`;
+    grid.appendChild(card);
+  });
+}
 
-    const item = document.createElement('div');
-    item.className = 'admin-item';
-    item.style.cssText = isExpired
-      ? 'opacity:.55;'
-      : 'border-color:rgba(229,9,20,0.2);';
+// ── Render Series ────────────────────────────────────────────
+function renderSeries(sortBy = 'default') {
+  const grid = $('seriesGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
 
-    item.innerHTML = `
-      <div style="font-size:30px;flex-shrink:0;line-height:1;">${n.icon || '📢'}</div>
-      <div class="admin-item-info" style="flex:1;">
-        <div class="admin-item-title">${n.title}</div>
-        <div style="font-size:13px;color:var(--muted);margin-top:4px;line-height:1.5;">${n.body || ''}</div>
-        <div style="font-size:11px;color:var(--muted2);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;">
-          <span>📅 נשלח: ${timeAgo(n.createdAt)}</span>
-          <span>${isExpired
-            ? '⌛ פג תוקף: ' + timeAgo(n.expiresAt)
-            : '⏳ תפוגה בעוד: ' + timeLeft}</span>
-          <span>👤 ${n.sentBy || 'admin'}</span>
+  let items = Object.entries(allSeries);
+  items = sortItems(items, sortBy);
+
+  if (items.length === 0) {
+    grid.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📺</div><p>אין סדרות עדיין</p></div>';
+    return;
+  }
+
+  items.forEach(([id, series], i) => {
+    const card = buildCard(id, series, 'series');
+    card.style.animationDelay = `${i * 0.04}s`;
+    grid.appendChild(card);
+  });
+}
+
+// ── Sort ─────────────────────────────────────────────────────
+function sortItems(entries, sortBy) {
+  switch (sortBy) {
+    case 'name':    return entries.sort((a, b) => (a[1].title || '').localeCompare(b[1].title || '', 'he'));
+    case 'rating':  return entries.sort((a, b) => (b[1].rating || 0) - (a[1].rating || 0));
+    case 'year':    return entries.sort((a, b) => (b[1].year || 0) - (a[1].year || 0));
+    case 'new':     return entries.sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
+    default:        return entries;
+  }
+}
+
+window.addEventListener('sortChanged', e => {
+  const { type, value } = e.detail;
+  if (type === 'movieSort')  renderMovies(value);
+  if (type === 'seriesSort') renderSeries(value);
+});
+
+// ── New This Week ────────────────────────────────────────────
+function renderNewThisWeek() {
+  const section = $('newThisWeekSection');
+  const grid    = $('newThisWeekGrid');
+  if (!section || !grid) return;
+
+  const newItems = [
+    ...Object.entries(allMovies).filter(([, m]) => isNew(m)).map(([id, m]) => [id, m, 'movie']),
+    ...Object.entries(allSeries).filter(([, s]) => isNew(s)).map(([id, s]) => [id, s, 'series']),
+  ].sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
+
+  section.style.display = newItems.length > 0 ? '' : 'none';
+  grid.innerHTML = '';
+  newItems.forEach(([id, item, type]) => grid.appendChild(buildCard(id, item, type)));
+}
+
+// ── Continue Watching ────────────────────────────────────────
+function renderContinue() {
+  const grid    = $('continueGrid');
+  const section = $('continueSection');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const items = Object.entries(continueData)
+    .filter(([, d]) => d.progress > 0 && d.progress < 95)
+    .sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0));
+
+  if (section) section.style.display = items.length > 0 ? '' : 'none';
+
+  items.forEach(([id, data]) => {
+    const item = allMovies[id] || allSeries[id];
+    if (!item) return;
+    const type = allMovies[id] ? 'movie' : 'series';
+    const card = buildCard(id, item, type);
+
+    // Continue badge
+    const badge = el('div', 'continue-badge', '▶ המשך');
+    card.querySelector('.poster-wrap').appendChild(badge);
+
+    grid.appendChild(card);
+  });
+}
+
+$('clearContinueBtn')?.addEventListener('click', async () => {
+  if (!currentProfile) return;
+  await remove(ref(db, `users/${currentUser.uid}/profiles/${currentProfile.id}/continue`));
+  window.showToast('המשך צפייה נוקה', 'info');
+});
+
+// ── ❤️ Wishlist ───────────────────────────────────────────────
+async function toggleWishlist(id, item, type, btn) {
+  if (!currentProfile) return;
+  const wlRef = ref(db, `users/${currentUser.uid}/profiles/${currentProfile.id}/wishlist/${id}`);
+  if (wishlist[id]) {
+    await remove(wlRef);
+    window.showToast(`"${item.title}" הוסר מהרשימה`, 'info', '💔');
+  } else {
+    await set(wlRef, { type, title: item.title, poster: item.poster || '', addedAt: Date.now() });
+    window.showToast(`"${item.title}" נוסף לרשימה!`, 'success', '❤️');
+    btn?.classList.add('pop');
+    setTimeout(() => btn?.classList.remove('pop'), 400);
+  }
+}
+
+function updateWishlistBtns() {
+  document.querySelectorAll('.card').forEach(card => {
+    const id  = card.dataset.id;
+    const btn = card.querySelector('.wishlist-btn');
+    if (!btn || !id) return;
+    const inList = !!wishlist[id];
+    btn.classList.toggle('in-list', inList);
+    btn.textContent = inList ? '❤️' : '🤍';
+    btn.title       = inList ? 'הסר מהרשימה' : 'הוסף לרשימה';
+  });
+}
+
+function renderWishlist() {
+  const grid  = $('wishlistGrid');
+  const empty = $('wishlistEmpty');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const filter = currentWishlistFilter;
+  const items  = Object.entries(wishlist).filter(([, v]) =>
+    filter === 'all' || v.type === filter
+  );
+
+  if (items.length === 0) {
+    empty?.classList.remove('hidden');
+    return;
+  }
+  empty?.classList.add('hidden');
+
+  items.sort((a, b) => (b[1].addedAt || 0) - (a[1].addedAt || 0));
+  items.forEach(([id, data]) => {
+    const source = data.type === 'movie' ? allMovies : allSeries;
+    const item   = source[id];
+    if (!item) return;
+    grid.appendChild(buildCard(id, item, data.type));
+  });
+}
+
+window.addEventListener('wishlistFilter', e => {
+  currentWishlistFilter = e.detail;
+  renderWishlist();
+});
+
+// ── 🕒 History ───────────────────────────────────────────────
+async function addToHistory(id, type, item, extra = {}) {
+  if (!currentProfile) return;
+  const entry = {
+    id, type,
+    title:     item.title,
+    poster:    item.poster || '',
+    watchedAt: Date.now(),
+    ...extra
+  };
+  await push(ref(db, `users/${currentUser.uid}/profiles/${currentProfile.id}/history`), entry);
+}
+
+function renderHistory() {
+  const list  = $('historyList');
+  const empty = $('historyEmpty');
+  if (!list) return;
+  list.innerHTML = '';
+
+  if (watchHistory.length === 0) {
+    empty?.classList.remove('hidden');
+    return;
+  }
+  empty?.classList.add('hidden');
+
+  watchHistory.forEach((entry, i) => {
+    const div = el('div', 'history-item');
+    div.innerHTML = `
+      <img class="history-thumb" src="${entry.poster}" alt="${entry.title}"
+           onerror="this.style.background='#1a1a28'; this.src='';" />
+      <div class="history-info">
+        <div class="history-title">${entry.title}</div>
+        <div class="history-meta">
+          ${entry.type === 'movie' ? '🎬 סרט' : '📺 סדרה'}
+          ${entry.episode ? ` • עונה ${entry.season} פרק ${entry.episode}` : ''}
         </div>
+        <div class="history-time">${timeAgo(entry.watchedAt)}</div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
-        ${!isExpired ? `
-          <button class="btn btn-secondary" style="padding:7px 10px;font-size:12px;"
-                  data-expire="${nid}">⏹ בטל עכשיו</button>` : ''}
-        <button class="btn btn-danger" style="padding:7px 10px;font-size:12px;"
-                data-delete-notif="${nid}">🗑 מחק</button>
+      <button class="history-delete" title="מחק מהיסטוריה" data-key="${entry._key || i}">🗑</button>
+    `;
+
+    div.querySelector('.history-item, img, .history-info')?.addEventListener?.('click', () => {
+      const item = entry.type === 'movie' ? allMovies[entry.id] : allSeries[entry.id];
+      if (item) openDetails(entry.id, item, entry.type);
+    });
+    div.addEventListener('click', e => {
+      if (e.target.closest('.history-delete')) return;
+      const item = entry.type === 'movie' ? allMovies[entry.id] : allSeries[entry.id];
+      if (item) openDetails(entry.id, item, entry.type);
+    });
+
+    list.appendChild(div);
+  });
+}
+
+window.addEventListener('clearHistory', async () => {
+  if (!currentProfile) return;
+  await remove(ref(db, `users/${currentUser.uid}/profiles/${currentProfile.id}/history`));
+  window.showToast('היסטוריה נוקתה', 'info');
+});
+
+// ── 🔔 Notifications ─────────────────────────────────────────
+// מבנה Firebase:
+//   /notifications/{id} = { title, body, icon, createdAt, expiresAt, type:'custom'|'content' }
+//   /users/{uid}/profiles/{pid}/lastSeen = timestamp
+//   /users/{uid}/profiles/{pid}/readNotifs/{notifId} = true
+
+let notifUnsub = null;
+
+async function checkNotifications() {
+  if (!currentProfile) return;
+
+  // Update lastSeen
+  const lastSeenRef = ref(db, `users/${currentUser.uid}/profiles/${currentProfile.id}/lastSeen`);
+  const lastSeenSnap = await get(lastSeenRef);
+  const lastSeen = lastSeenSnap.val() || 0;
+  await set(lastSeenRef, Date.now());
+
+  // Listen to /notifications in real-time
+  if (notifUnsub) notifUnsub();
+  notifUnsub = onValue(ref(db, 'notifications'), async snap => {
+    const allNotifs = snap.val() || {};
+    const now = Date.now();
+
+    // Read status for this profile
+    const readSnap = await get(ref(db, `users/${currentUser.uid}/profiles/${currentProfile.id}/readNotifs`));
+    const readMap = readSnap.val() || {};
+
+    // Filter: not expired, not read
+    const active = Object.entries(allNotifs)
+      .filter(([nid, n]) => {
+        if (readMap[nid]) return false;                     // כבר נקרא
+        if (n.expiresAt && now > n.expiresAt) return false; // פג תוקף
+        return true;
+      })
+      .sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
+
+    // Content notifications (חדש מאז הכניסה)
+    const newContent = [
+      ...Object.entries(allMovies).filter(([, m]) => (m.createdAt || 0) > lastSeen).map(([id, m]) => ({ id, ...m, type: 'movie' })),
+      ...Object.entries(allSeries).filter(([, s]) => (s.createdAt || 0) > lastSeen).map(([id, s]) => ({ id, ...s, type: 'series' })),
+    ].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    const totalCount = active.length + (lastSeen > 0 ? newContent.length : 0);
+    const badge = $('notifBadge');
+    const panel = $('notifPanel');
+
+    if (badge) {
+      if (totalCount > 0) {
+        badge.textContent = totalCount > 9 ? '9+' : totalCount;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    if (!panel) return;
+    panel.innerHTML = '';
+
+    if (totalCount === 0) {
+      panel.innerHTML = '<div class="notif-empty">🎉 אין התראות חדשות</div>';
+      return;
+    }
+
+    // ── Custom notifications (מהאדמין) ──────────────────
+    if (active.length > 0) {
+      const head = document.createElement('div');
+      head.className = 'notif-panel-head';
+      head.innerHTML = `<span>📢 הודעות מהמנהל</span><span class="badge badge-red">${active.length}</span>`;
+      panel.appendChild(head);
+
+      active.forEach(([nid, n]) => {
+        const row = el('div', 'notif-item notif-item-custom');
+        row.style.cssText = 'background:rgba(229,9,20,0.05);border-bottom:1px solid rgba(229,9,20,0.1);';
+        row.innerHTML = `
+          <div style="font-size:26px;flex-shrink:0;">${n.icon || '📢'}</div>
+          <div class="notif-item-info" style="flex:1;">
+            <div class="notif-item-title">${n.title}</div>
+            <div class="notif-item-sub" style="white-space:normal;line-height:1.4;">${n.body || ''}</div>
+            <div class="notif-item-sub" style="margin-top:4px;opacity:.6;">${timeAgo(n.createdAt)}</div>
+          </div>
+          <button class="notif-dismiss-btn" data-nid="${nid}" title="סמן כנקרא"
+                  style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:4px;flex-shrink:0;">✕</button>
+        `;
+        row.querySelector('.notif-dismiss-btn').addEventListener('click', async e => {
+          e.stopPropagation();
+          await set(ref(db, `users/${currentUser.uid}/profiles/${currentProfile.id}/readNotifs/${nid}`), true);
+        });
+        panel.appendChild(row);
+      });
+    }
+
+    // ── Content notifications (תוכן חדש) ────────────────
+    if (lastSeen > 0 && newContent.length > 0) {
+      const head2 = document.createElement('div');
+      head2.className = 'notif-panel-head';
+      head2.innerHTML = `<span>✨ חדש מאז הכניסה האחרונה</span><span class="badge badge-red">${newContent.length}</span>`;
+      panel.appendChild(head2);
+
+      newContent.slice(0, 6).forEach(item => {
+        const row = el('div', 'notif-item');
+        row.innerHTML = `
+          <img src="${item.poster || ''}" alt="${item.title}"
+               onerror="this.style.background='#1a1a28'; this.src='';" />
+          <div class="notif-item-info">
+            <div class="notif-item-title">${item.title}</div>
+            <div class="notif-item-sub">${item.type === 'movie' ? '🎬 סרט חדש' : '📺 סדרה חדשה'} • ${timeAgo(item.createdAt)}</div>
+          </div>
+        `;
+        row.addEventListener('click', () => {
+          panel.classList.add('hidden');
+          openDetails(item.id, item, item.type);
+        });
+        panel.appendChild(row);
+      });
+    }
+  });
+}
+
+window.addEventListener('notifOpened', () => {
+  // לא מסיר את ה-badge — הוא ייעלם רק כשקוראים/פג תוקף
+});
+
+// ── Details Modal ────────────────────────────────────────────
+function openDetails(id, item, type) {
+  const body     = $('detailsBody');
+  const modal    = $('detailsModal');
+  if (!body || !modal) return;
+
+  const inWishlist = !!wishlist[id];
+  const myRating   = item.ratings?.[currentProfile?.id] || 0;
+
+  if (type === 'movie') {
+    body.innerHTML = `
+      <div class="details-layout">
+        <div>
+          <img class="details-poster"
+               src="${item.poster || ''}"
+               alt="${item.title}"
+               onerror="this.style.background='#1a1a28'; this.src='';" />
+        </div>
+        <div>
+          <div class="eyebrow">${item.category || ''} ${item.year ? '• ' + item.year : ''}</div>
+          <h2 class="details-title">${item.title}</h2>
+          <p class="details-desc">${item.description || ''}</p>
+
+          <div class="details-actions">
+            ${item.video ? `
+              <button class="btn btn-primary" id="playMovieBtn">
+                ▶ הפעל סרט
+              </button>` : ''}
+            ${item.trailer ? `
+              <button class="btn btn-trailer btn-secondary" id="playTrailerBtn">
+                🎬 צפה בטריילר
+              </button>` : ''}
+            <button class="btn btn-wishlist-detail ${inWishlist ? 'in-list' : ''}" id="detailWishlistBtn">
+              ${inWishlist ? '❤️ ברשימה שלי' : '🤍 הוסף לרשימה'}
+            </button>
+          </div>
+
+          <div class="rating-stars">
+            <span class="small muted" style="margin-left:6px;">דירוג שלך:</span>
+            ${[1,2,3,4,5].map(n => `
+              <button class="star-btn ${myRating >= n ? 'active' : ''}" data-star="${n}">
+                ${'⭐'.repeat(n)}
+              </button>`).join('')}
+          </div>
+        </div>
       </div>
     `;
 
-    // Expire now
-    item.querySelector(`[data-expire="${nid}"]`)?.addEventListener('click', async () => {
-      await update(ref(db, `notifications/${nid}`), { expiresAt: Date.now() - 1 });
-      showToast('ההתראה בוטלה', 'info');
+    // Play movie
+    body.querySelector('#playMovieBtn')?.addEventListener('click', () => {
+      closeModal('detailsModal');
+      playVideo(item.video, item.title, '', false);
+      addToHistory(id, 'movie', item);
     });
 
-    // Delete
-    item.querySelector(`[data-delete-notif="${nid}"]`).addEventListener('click', async () => {
-      if (!confirm('למחוק התראה זו לצמיתות?')) return;
-      await remove(ref(db, `notifications/${nid}`));
-      showToast('ההתראה נמחקה', 'info');
+    // Play trailer
+    body.querySelector('#playTrailerBtn')?.addEventListener('click', () => {
+      closeModal('detailsModal');
+      playVideo(item.trailer, item.title, 'טריילר', false, true);
+    });
+
+    // Wishlist
+    body.querySelector('#detailWishlistBtn')?.addEventListener('click', async e => {
+      await toggleWishlist(id, item, type, null);
+      // Refresh button
+      const inList = !!wishlist[id];
+      e.target.textContent = inList ? '❤️ ברשימה שלי' : '🤍 הוסף לרשימה';
+      e.target.classList.toggle('in-list', inList);
+    });
+
+  } else {
+    // Series — מבנה: series/{id}/seasons/{seasonNum}/episodes/{epNum}
+    // פורמט episodes: [ [uniqueKey, { season, number, title, video, ... }], ... ]
+    const seasonsData = item.seasons || {};
+    const episodes = [];
+    Object.entries(seasonsData).forEach(([seasonNum, seasonObj]) => {
+      const eps = seasonObj.episodes || {};
+      Object.entries(eps).forEach(([epNum, ep]) => {
+        // המפתח הייחודי: seriesId_season_epNum
+        const uniqueKey = `${id}_s${seasonNum}_e${epNum}`;
+        episodes.push([uniqueKey, {
+          ...ep,
+          season: Number(seasonNum),
+          number: Number(epNum),
+          _seasonKey: seasonNum,
+          _epKey: epNum,
+        }]);
+      });
+    });
+    episodes.sort((a, b) => {
+      if (a[1].season !== b[1].season) return a[1].season - b[1].season;
+      return a[1].number - b[1].number;
+    });
+
+    const seasons = [...new Set(episodes.map(([, ep]) => ep.season))].sort((a, b) => a - b);
+    const totalEps  = episodes.length;
+    const watchedEps = episodes.filter(([eid]) => continueData[eid]?.progress > 80).length;
+    const pct       = totalEps > 0 ? Math.round((watchedEps / totalEps) * 100) : 0;
+
+    body.innerHTML = `
+      <div class="details-layout">
+        <div>
+          <img class="details-poster"
+               src="${item.poster || ''}"
+               alt="${item.title}"
+               onerror="this.style.background='#1a1a28'; this.src='';" />
+          ${totalEps > 0 ? `
+            <div class="series-progress-wrap" style="margin-top:14px;">
+              <div class="series-progress-track">
+                <div class="series-progress-fill" style="width:${pct}%"></div>
+              </div>
+              <span>${watchedEps}/${totalEps} פרקים</span>
+            </div>` : ''}
+        </div>
+        <div>
+          <div class="eyebrow">${item.category || ''} ${item.year ? '• ' + item.year : ''}</div>
+          <h2 class="details-title">${item.title}</h2>
+          <p class="details-desc">${item.description || ''}</p>
+
+          <div class="details-actions">
+            ${item.trailer ? `
+              <button class="btn btn-trailer btn-secondary" id="playTrailerBtn">
+                🎬 צפה בטריילר
+              </button>` : ''}
+            <button class="btn btn-wishlist-detail ${inWishlist ? 'in-list' : ''}" id="detailWishlistBtn">
+              ${inWishlist ? '❤️ ברשימה שלי' : '🤍 הוסף לרשימה'}
+            </button>
+          </div>
+
+          <div class="rating-stars">
+            <span class="small muted" style="margin-left:6px;">דירוג שלך:</span>
+            ${[1,2,3,4,5].map(n => `
+              <button class="star-btn ${myRating >= n ? 'active' : ''}" data-star="${n}">
+                ${'⭐'.repeat(n)}
+              </button>`).join('')}
+          </div>
+
+          ${seasons.length > 0 ? `
+            <div class="seasons-nav" id="seasonsNav">
+              ${seasons.map((s, i) => `
+                <button class="btn ${i === 0 ? 'btn-primary' : 'btn-secondary'} season-btn"
+                        data-season="${s}">עונה ${s}</button>
+              `).join('')}
+            </div>
+            <div id="episodeList" class="episode-list"></div>
+          ` : '<div class="muted" style="margin-top:18px;">אין פרקים עדיין</div>'}
+        </div>
+      </div>
+    `;
+
+    // Trailer
+    body.querySelector('#playTrailerBtn')?.addEventListener('click', () => {
+      closeModal('detailsModal');
+      playVideo(item.trailer, item.title, 'טריילר', false, true);
+    });
+
+    // Wishlist
+    body.querySelector('#detailWishlistBtn')?.addEventListener('click', async e => {
+      await toggleWishlist(id, item, type, null);
+      const inList = !!wishlist[id];
+      e.target.textContent = inList ? '❤️ ברשימה שלי' : '🤍 הוסף לרשימה';
+      e.target.classList.toggle('in-list', inList);
+    });
+
+    // Seasons nav
+    if (seasons.length > 0) {
+      renderEpisodes(episodes, seasons[0], id, item);
+
+      body.querySelectorAll('.season-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          body.querySelectorAll('.season-btn').forEach(b =>
+            b.className = b === btn ? 'btn btn-primary season-btn' : 'btn btn-secondary season-btn');
+          renderEpisodes(episodes, +btn.dataset.season, id, item);
+        });
+      });
+    }
+  }
+
+  // Rating stars
+  body.querySelectorAll('.star-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const n = +btn.dataset.star;
+      set(ref(db, `${type === 'movie' ? 'movies' : 'series'}/${id}/ratings/${currentProfile.id}`), n);
+      body.querySelectorAll('.star-btn').forEach((b, i) =>
+        b.classList.toggle('active', i < n));
+      window.showToast(`דירגת ${n} כוכבים!`, 'success', '⭐');
+    });
+  });
+
+  openModal('detailsModal');
+}
+
+function renderEpisodes(episodes, season, seriesId, seriesItem) {
+  const list = $('episodeList');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const filtered = episodes.filter(([, ep]) => ep.season === season);
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="muted small" style="padding:14px;">אין פרקים בעונה זו</div>';
+    return;
+  }
+
+  filtered.forEach(([epId, ep]) => {
+    const epNum    = ep.number  ?? ep._epKey ?? '?';
+    const epSeason = ep.season  ?? season;
+    const epTitle  = ep.title   ?? ep.name  ?? '';
+    const epVideo  = ep.video   ?? ep.url   ?? ep.videoUrl ?? ep.link ?? '';
+    const epDesc   = ep.description ?? ep.desc ?? '';
+    const epPoster = ep.poster  ?? ep.thumbnail ?? ep.image ?? ep.thumb ?? '';
+
+    // continueData key = seriesId_season_epNum (אותו uniqueKey שבנינו)
+    const watched = (continueData[epId]?.progress || 0) > 80;
+
+    const item = el('div', 'episode-item');
+    item.innerHTML = `
+      <img src="${epPoster}" alt="${epTitle}"
+           onerror="this.style.background='#222'; this.src='';" />
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:800; font-size:14px;">
+          פרק ${epNum}${epTitle ? ' — ' + epTitle : ''}
+          ${watched ? '<span class="badge" style="margin-right:6px; font-size:10px;">✅ נצפה</span>' : ''}
+        </div>
+        ${epDesc ? `<div class="small muted" style="margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${epDesc}</div>` : ''}
+      </div>
+      <button class="btn btn-primary" style="padding:9px 14px; flex-shrink:0;">▶</button>
+    `;
+
+    item.querySelector('button').addEventListener('click', () => {
+      closeModal('detailsModal');
+      playVideo(
+        epVideo,
+        seriesItem.title,
+        `עונה ${epSeason} • פרק ${epNum}`,
+        true, false,
+        epId, episodes, seriesId, seriesItem
+      );
+      addToHistory(seriesId, 'series', seriesItem, { episode: epNum, season: epSeason });
     });
 
     list.appendChild(item);
   });
 }
 
-function formatTimeLeft(ms) {
-  if (ms <= 0) return 'פג תוקף';
-  const h = Math.floor(ms / 3600000);
-  const d = Math.floor(ms / 86400000);
-  if (d >= 1)  return `${d} ימים`;
-  if (h >= 1)  return `${h} שעות`;
-  return 'פחות משעה';
+// ── Player ───────────────────────────────────────────────────
+let currentEpId       = null;
+let currentEpisodes   = [];
+let currentSeriesId   = null;
+let currentSeriesItem = null;
+let progressInterval  = null;
+
+function playVideo(url, title, meta, isEpisode = false, isTrailer = false,
+                   epId = null, episodes = [], seriesId = null, seriesItem = null) {
+  const host     = $('playerHost');
+  const titleEl  = $('playerTitle');
+  const metaEl   = $('playerMeta');
+  const nextBtn  = $('nextEpisodeBtn');
+  const typeLabel = $('playerTypeLabel');
+
+  if (!host) return;
+
+  currentEpId       = epId;
+  currentEpisodes   = episodes;
+  currentSeriesId   = seriesId;
+  currentSeriesItem = seriesItem;
+
+  if (titleEl)   titleEl.textContent  = title;
+  if (metaEl)    metaEl.textContent   = meta;
+  if (typeLabel) typeLabel.textContent = isTrailer ? '🎬 טריילר' : '▶ צופה';
+
+  // Next episode button
+  if (nextBtn) {
+    if (isEpisode && !isTrailer && epId && episodes.length > 0) {
+      const allEpIds = episodes.map(([id]) => id);
+      const idx      = allEpIds.indexOf(epId);
+      nextBtn.classList.toggle('hidden', idx === allEpIds.length - 1);
+      nextBtn.onclick = () => {
+        if (idx + 1 < allEpIds.length) {
+          const [nextId, nextEp] = episodes[idx + 1];
+          closeModal('playerModal');
+          setTimeout(() => {
+            playVideo(nextEp.video, seriesItem?.title || title,
+              `עונה ${nextEp.season} • פרק ${nextEp.number}`,
+              true, false, nextId, episodes, seriesId, seriesItem);
+            if (seriesItem) addToHistory(seriesId, 'series', seriesItem,
+              { episode: nextEp.number, season: nextEp.season });
+          }, 200);
+        }
+      };
+    } else {
+      nextBtn.classList.add('hidden');
+    }
+  }
+
+  // Build player
+  host.innerHTML = '';
+  clearInterval(progressInterval);
+
+  if (!url) {
+    host.innerHTML = '<div class="empty-state" style="height:300px;"><p>אין קישור וידאו</p></div>';
+    openModal('playerModal');
+    return;
+  }
+
+  const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
+
+  if (isYouTube) {
+    const iframe = document.createElement('iframe');
+    iframe.src             = url + (url.includes('?') ? '&' : '?') + 'autoplay=1&rel=0';
+    iframe.allow           = 'autoplay; fullscreen; picture-in-picture';
+    iframe.allowFullscreen = true;
+    host.appendChild(iframe);
+  } else {
+    const video = document.createElement('video');
+    video.src      = url;
+    video.controls = true;
+    video.autoplay = true;
+    video.className = 'plyr__video-embed';
+    host.appendChild(video);
+
+    // Save progress
+    if (!isTrailer && epId) {
+      video.addEventListener('loadedmetadata', () => {
+        const saved = continueData[epId];
+        if (saved?.position) video.currentTime = saved.position;
+      });
+
+      progressInterval = setInterval(() => {
+        if (!video.paused && video.duration) {
+          const pct = Math.round((video.currentTime / video.duration) * 100);
+          set(ref(db, `users/${currentUser.uid}/profiles/${currentProfile.id}/continue/${epId}`), {
+            progress:  pct,
+            position:  Math.floor(video.currentTime),
+            duration:  Math.floor(video.duration),
+            timestamp: Date.now()
+          });
+        }
+      }, 10000);
+    }
+  }
+
+  openModal('playerModal');
 }
 
-// ── Clear expired ─────────────────────────────────────────────
-document.getElementById('clearOldNotifsBtn')?.addEventListener('click', async () => {
-  const snap = await get(ref(db, 'notifications'));
-  const all  = snap.val() || {};
-  const now  = Date.now();
-  const toDelete = Object.entries(all).filter(([, n]) => n.expiresAt && now > n.expiresAt);
-  await Promise.all(toDelete.map(([nid]) => remove(ref(db, `notifications/${nid}`))));
-  showToast(`${toDelete.length} התראות פגות נמחקו`, 'success');
+// ── Stop player completely (audio bug fix) ───────────────────
+function stopPlayer() {
+  clearInterval(progressInterval);
+  const host = $('playerHost');
+  if (!host) return;
+  // מנקה את כל התוכן — עוצר iframe YouTube וגם video tag
+  host.innerHTML = '';
+}
+
+// Close player → stop audio + clear interval
+$('playerModal')?.querySelector('.modal-close')?.addEventListener('click', () => {
+  stopPlayer();
+  closeModal('playerModal');
+});
+$('playerModal')?.querySelector('.modal-backdrop')?.addEventListener('click', () => {
+  stopPlayer();
+  closeModal('playerModal');
 });
 
-// ── Refresh button ────────────────────────────────────────────
-document.getElementById('refreshNotifBtn')?.addEventListener('click', loadNotifications);
+// ── Random ───────────────────────────────────────────────────
+function pickRandom() {
+  const all = [
+    ...Object.entries(allMovies).map(([id, m]) => [id, m, 'movie']),
+    ...Object.entries(allSeries).map(([id, s]) => [id, s, 'series']),
+  ];
+  if (all.length === 0) return;
+  const [id, item, type] = all[Math.floor(Math.random() * all.length)];
+  openDetails(id, item, type);
+}
+$('randomBtn')?.addEventListener('click', pickRandom);
+$('heroRandomBtn')?.addEventListener('click', pickRandom);
 
-// ── Init ─────────────────────────────────────────────────────
-loadNotifications();
+// ── Requests ─────────────────────────────────────────────────
+function openRequestsModal() {
+  openModal('requestsModal');
+  loadRequests();
+}
+$('requestsBtn')?.addEventListener('click', openRequestsModal);
+$('heroRequestsBtn')?.addEventListener('click', openRequestsModal);
+
+$('sendRequestBtn')?.addEventListener('click', async () => {
+  const title = $('requestTitle').value.trim();
+  const note  = $('requestNote').value.trim();
+  if (!title) return;
+  await push(ref(db, 'requests'), {
+    title, note,
+    user:      currentProfile?.name || currentUser?.email || 'Unknown',
+    createdAt: Date.now(),
+    status:    'pending'
+  });
+  $('requestTitle').value = '';
+  $('requestNote').value  = '';
+  loadRequests();
+  window.showToast('הבקשה נשלחה!', 'success');
+});
+
+function loadRequests() {
+  const list = $('requestsList');
+  if (!list) return;
+  get(ref(db, 'requests')).then(snap => {
+    const reqs = snap.val() || {};
+    list.innerHTML = '';
+    Object.entries(reqs)
+      .sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0))
+      .forEach(([rid, req]) => {
+        const item = el('div', 'request-card');
+        item.innerHTML = `
+          <div style="flex:1;">
+            <div style="font-weight:700;">${req.title}</div>
+            <div class="small muted">${req.user} • ${timeAgo(req.createdAt)}</div>
+            ${req.note ? `<div class="small muted" style="margin-top:4px;">${req.note}</div>` : ''}
+          </div>
+          <span class="badge ${req.status === 'done' ? 'badge-red' : ''}">${req.status === 'done' ? '✅ הושלם' : '⏳ ממתין'}</span>
+        `;
+        list.appendChild(item);
+      });
+  });
+}
+
+// ── Admin button ─────────────────────────────────────────────
+$('adminBtn')?.addEventListener('click', () => {
+  window.open('admin.html', '_blank');
+});
+
+// ── Search ───────────────────────────────────────────────────
+const searchInput   = $('searchInput');
+const searchResults = $('searchResults');
+
+searchInput?.addEventListener('input', () => {
+  const q = searchInput.value.trim().toLowerCase();
+  if (!q) { searchResults?.classList.add('hidden'); return; }
+
+  const results = [
+    ...Object.entries(allMovies).map(([id, m]) => ({ id, ...m, type: 'movie' })),
+    ...Object.entries(allSeries).map(([id, s]) => ({ id, ...s, type: 'series' })),
+  ].filter(item => item.title?.toLowerCase().includes(q)).slice(0, 8);
+
+  if (!searchResults) return;
+  searchResults.innerHTML = '';
+
+  if (results.length === 0) {
+    searchResults.innerHTML = '<div class="search-result-item"><span class="title">לא נמצאו תוצאות</span></div>';
+  } else {
+    results.forEach(item => {
+      const row = el('div', 'search-result-item');
+      row.innerHTML = `
+        <img src="${item.poster || ''}" alt="${item.title}"
+             onerror="this.style.background='#1a1a28'; this.src='';" />
+        <div>
+          <div class="title">${item.title}</div>
+          <div class="type">${item.type === 'movie' ? '🎬 סרט' : '📺 סדרה'}</div>
+        </div>
+      `;
+      row.addEventListener('click', () => {
+        searchResults.classList.add('hidden');
+        searchInput.value = '';
+        openDetails(item.id, item, item.type);
+      });
+      searchResults.appendChild(row);
+    });
+  }
+  searchResults.classList.remove('hidden');
+});
+
+document.addEventListener('click', e => {
+  if (!searchInput?.contains(e.target)) searchResults?.classList.add('hidden');
+});
+
+// ── Modal helpers ─────────────────────────────────────────────
+function openModal(id)  { $(id)?.classList.remove('hidden'); }
+function closeModal(id) { $(id)?.classList.add('hidden'); }
+
+document.querySelectorAll('[data-close]').forEach(btn => {
+  btn.addEventListener('click', () => closeModal(btn.dataset.close));
+});
