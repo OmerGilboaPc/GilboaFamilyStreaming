@@ -622,3 +622,16 @@ textarea{min-height:100px;resize:vertical}
   .details-actions { gap: 8px; }
   .details-actions .btn { flex: 1; justify-content: center; }
 }
+
+/* ── 🔔 Custom Admin Notifications in panel ─────────────────── */
+.notif-item-custom {
+  cursor: default;
+}
+.notif-item-custom:hover {
+  background: rgba(229,9,20,0.08) !important;
+}
+.notif-dismiss-btn:hover {
+  color: #fff !important;
+  background: rgba(255,255,255,0.1);
+  border-radius: 6px;
+}
