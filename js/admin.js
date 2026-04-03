@@ -700,3 +700,164 @@ function showAdminSuccess(id) {
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 3000);
 }
+
+
+// ════════════════════════════════════════════════════════════
+//  🔔  NOTIFICATIONS ADMIN
+//  Firebase path: /notifications/{id}
+//  { title, body, icon, createdAt, expiresAt, sentBy }
+// ════════════════════════════════════════════════════════════
+
+// ── Live preview while typing ────────────────────────────────
+['notifTitle','notifBody','notifIcon'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', updateNotifPreview);
+});
+
+function updateNotifPreview() {
+  const title = document.getElementById('notifTitle')?.value || 'כותרת ההתראה';
+  const body  = document.getElementById('notifBody')?.value  || 'תוכן ההודעה יופיע כאן...';
+  const icon  = document.getElementById('notifIcon')?.value  || '📢';
+  const el    = id => document.getElementById(id);
+  if (el('notifPreviewTitle')) el('notifPreviewTitle').textContent = title;
+  if (el('notifPreviewBody'))  el('notifPreviewBody').textContent  = body;
+  if (el('notifPreviewIcon'))  el('notifPreviewIcon').textContent  = icon || '📢';
+}
+
+// ── Send notification ─────────────────────────────────────────
+document.getElementById('sendNotifBtn')?.addEventListener('click', async () => {
+  const title   = document.getElementById('notifTitle')?.value.trim();
+  const body    = document.getElementById('notifBody')?.value.trim();
+  const icon    = document.getElementById('notifIcon')?.value.trim() || '📢';
+  const hours   = parseInt(document.getElementById('notifExpiry')?.value || '24');
+
+  if (!title) { showToast('כותרת חובה', 'error'); return; }
+  if (!body)  { showToast('תוכן חובה',  'error'); return; }
+
+  const now      = Date.now();
+  const expiresAt = hours > 0 ? now + hours * 3600000 : null;
+
+  const data = {
+    title, body, icon,
+    createdAt: now,
+    sentBy:    auth.currentUser?.email || 'admin',
+    ...(expiresAt && { expiresAt }),
+  };
+
+  await push(ref(db, 'notifications'), data);
+
+  document.getElementById('notifTitle').value = '';
+  document.getElementById('notifBody').value  = '';
+  document.getElementById('notifIcon').value  = '';
+  updateNotifPreview();
+  showAdminSuccess('notifSuccess');
+  showToast('ההתראה נשלחה!', 'success');
+  loadNotifications();
+});
+
+// ── Load & render notifications ──────────────────────────────
+function loadNotifications() {
+  onValue(ref(db, 'notifications'), snap => {
+    const all = snap.val() || {};
+    const now = Date.now();
+
+    const active  = [];
+    const expired = [];
+
+    Object.entries(all)
+      .sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0))
+      .forEach(([nid, n]) => {
+        const isExpired = n.expiresAt && now > n.expiresAt;
+        (isExpired ? expired : active).push([nid, n]);
+      });
+
+    renderNotifList('activeNotifList',  active,  false);
+    renderNotifList('notifHistoryList', expired, true);
+  });
+}
+
+function renderNotifList(listId, entries, isHistory) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  list.innerHTML = '';
+
+  if (entries.length === 0) {
+    list.innerHTML = `<div class="muted small" style="padding:14px;">
+      ${isHistory ? 'אין התראות פגות תוקף' : 'אין התראות פעילות כרגע'}
+    </div>`;
+    return;
+  }
+
+  entries.forEach(([nid, n]) => {
+    const now       = Date.now();
+    const isExpired = n.expiresAt && now > n.expiresAt;
+    const timeLeft  = n.expiresAt ? formatTimeLeft(n.expiresAt - now) : 'ללא תפוגה';
+
+    const item = document.createElement('div');
+    item.className = 'admin-item';
+    item.style.cssText = isExpired
+      ? 'opacity:.55;'
+      : 'border-color:rgba(229,9,20,0.2);';
+
+    item.innerHTML = `
+      <div style="font-size:30px;flex-shrink:0;line-height:1;">${n.icon || '📢'}</div>
+      <div class="admin-item-info" style="flex:1;">
+        <div class="admin-item-title">${n.title}</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px;line-height:1.5;">${n.body || ''}</div>
+        <div style="font-size:11px;color:var(--muted2);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;">
+          <span>📅 נשלח: ${timeAgo(n.createdAt)}</span>
+          <span>${isExpired
+            ? '⌛ פג תוקף: ' + timeAgo(n.expiresAt)
+            : '⏳ תפוגה בעוד: ' + timeLeft}</span>
+          <span>👤 ${n.sentBy || 'admin'}</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+        ${!isExpired ? `
+          <button class="btn btn-secondary" style="padding:7px 10px;font-size:12px;"
+                  data-expire="${nid}">⏹ בטל עכשיו</button>` : ''}
+        <button class="btn btn-danger" style="padding:7px 10px;font-size:12px;"
+                data-delete-notif="${nid}">🗑 מחק</button>
+      </div>
+    `;
+
+    // Expire now
+    item.querySelector(`[data-expire="${nid}"]`)?.addEventListener('click', async () => {
+      await update(ref(db, `notifications/${nid}`), { expiresAt: Date.now() - 1 });
+      showToast('ההתראה בוטלה', 'info');
+    });
+
+    // Delete
+    item.querySelector(`[data-delete-notif="${nid}"]`).addEventListener('click', async () => {
+      if (!confirm('למחוק התראה זו לצמיתות?')) return;
+      await remove(ref(db, `notifications/${nid}`));
+      showToast('ההתראה נמחקה', 'info');
+    });
+
+    list.appendChild(item);
+  });
+}
+
+function formatTimeLeft(ms) {
+  if (ms <= 0) return 'פג תוקף';
+  const h = Math.floor(ms / 3600000);
+  const d = Math.floor(ms / 86400000);
+  if (d >= 1)  return `${d} ימים`;
+  if (h >= 1)  return `${h} שעות`;
+  return 'פחות משעה';
+}
+
+// ── Clear expired ─────────────────────────────────────────────
+document.getElementById('clearOldNotifsBtn')?.addEventListener('click', async () => {
+  const snap = await get(ref(db, 'notifications'));
+  const all  = snap.val() || {};
+  const now  = Date.now();
+  const toDelete = Object.entries(all).filter(([, n]) => n.expiresAt && now > n.expiresAt);
+  await Promise.all(toDelete.map(([nid]) => remove(ref(db, `notifications/${nid}`))));
+  showToast(`${toDelete.length} התראות פגות נמחקו`, 'success');
+});
+
+// ── Refresh button ────────────────────────────────────────────
+document.getElementById('refreshNotifBtn')?.addEventListener('click', loadNotifications);
+
+// ── Init ─────────────────────────────────────────────────────
+loadNotifications();
