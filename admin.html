@@ -236,6 +236,9 @@
     <button class="admin-nav-tab" data-panel="episodes">🎞 פרקים</button>
     <button class="admin-nav-tab" data-panel="requests">📩 בקשות</button>
     <button class="admin-nav-tab" data-panel="users">👥 משתמשים</button>
+    <button class="admin-nav-tab" data-panel="scheduled">🕐 תזמון תוכן</button>
+    <button class="admin-nav-tab" data-panel="quizzes">🧠 חידונים</button>
+    <button class="admin-nav-tab" data-panel="activitylog">📋 יומן פעילות</button>
     <button class="admin-nav-tab" data-panel="notifications">🔔 התראות</button>
   </div>
 
@@ -572,6 +575,138 @@
         <button id="clearOldNotifsBtn" class="btn btn-secondary" style="font-size:12px;padding:7px 12px;">🗑 מחק פגי תוקף</button>
       </div>
       <div id="notifHistoryList" class="stack" style="margin-bottom:40px;"></div>
+    </div>
+
+
+    <!-- ── Panel: Scheduled ─────────────────────────────── -->
+    <div class="admin-panel" id="panel-scheduled">
+      <div class="section-head" style="margin-top:8px;">
+        <h2>🕐 תזמון תוכן</h2>
+      </div>
+      <div class="admin-grid">
+        <section class="glass admin-card">
+          <h3 style="margin-bottom:18px;">➕ הוסף תוכן מתוזמן</h3>
+          <div class="form-grid" style="gap:14px;">
+            <div class="field-group">
+              <div class="field-label">סוג תוכן *</div>
+              <select id="schedType">
+                <option value="movie">🎬 סרט</option>
+                <option value="series">📺 סדרה</option>
+                <option value="episode">🎞 פרק לסדרה קיימת</option>
+              </select>
+            </div>
+            <div id="schedEpisodeFields" class="hidden">
+              <div class="field-group" style="margin-bottom:10px;">
+                <div class="field-label">סדרה *</div>
+                <select id="schedSeriesSelect"></select>
+              </div>
+              <div class="form-row">
+                <div class="field-group">
+                  <div class="field-label">עונה *</div>
+                  <input id="schedSeason" type="number" min="1" placeholder="1" />
+                </div>
+                <div class="field-group">
+                  <div class="field-label">מספר פרק *</div>
+                  <input id="schedEpNum" type="number" min="1" placeholder="1" />
+                </div>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field-label">כותרת *</div>
+              <input id="schedTitle" placeholder="שם הסרט / סדרה / פרק" />
+            </div>
+            <div class="field-group">
+              <div class="field-label">Poster URL</div>
+              <input id="schedPoster" placeholder="https://..." />
+            </div>
+            <div class="field-group">
+              <div class="field-label">קטגוריה</div>
+              <input id="schedCategory" placeholder="אקשן, קומדיה..." />
+            </div>
+            <div class="field-group">
+              <div class="field-label">תיאור</div>
+              <textarea id="schedDescription" placeholder="תיאור קצר..." style="min-height:70px;"></textarea>
+            </div>
+            <div class="field-group">
+              <div class="field-label">קישור וידאו (לפרק/סרט)</div>
+              <input id="schedVideo" placeholder="https://..." />
+            </div>
+            <div class="field-group">
+              <div class="field-label">תאריך ושעת פרסום *</div>
+              <input id="schedPublishAt" type="datetime-local" />
+            </div>
+            <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;">
+              <div class="field-label" style="margin-bottom:10px;">מצב תצוגה לפני הפרסום</div>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <input type="checkbox" id="schedVisible" style="width:18px;height:18px;cursor:pointer;" />
+                <span style="font-size:14px;">הצג ב"בקרוב" (שם, פוסטר, תיאור) לפני שעולה</span>
+              </label>
+              <div class="field-hint" style="margin-top:6px;">אם לא מסומן — עולה בשקט ב-8 בערב ואף אחד לא יודע עד שזה עולה</div>
+            </div>
+          </div>
+          <button id="addScheduledBtn" class="btn btn-primary" style="margin-top:16px;width:100%;">⏰ תזמן תוכן</button>
+          <div id="scheduledSuccess" class="admin-success">✅ התוכן תוזמן!</div>
+        </section>
+        <section class="glass admin-card">
+          <div class="section-head" style="margin:0 0 16px;">
+            <h3>📋 תוכן מתוזמן</h3>
+          </div>
+          <div id="scheduledList" class="stack"></div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ── Panel: Quizzes ────────────────────────────────── -->
+    <div class="admin-panel" id="panel-quizzes">
+      <div class="section-head" style="margin-top:8px;"><h2>🧠 ניהול חידונים</h2></div>
+      <div class="admin-grid">
+        <section class="glass admin-card">
+          <h3 style="margin-bottom:18px;">➕ צור חידון חדש</h3>
+          <div class="form-grid" style="gap:14px;">
+            <div class="field-group">
+              <div class="field-label">כותרת החידון *</div>
+              <input id="quizTitle" placeholder="למשל: חידון Fast &amp; Furious" />
+            </div>
+            <div class="field-group">
+              <div class="field-label">סוג תוכן</div>
+              <select id="quizContentType">
+                <option value="movie">🎬 סרט</option>
+                <option value="series">📺 סדרה</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <div class="field-label">שייך לסרט / סדרה</div>
+              <select id="quizContentSelect"></select>
+            </div>
+          </div>
+          <div id="quizQuestionsBuilder" class="stack" style="margin-top:16px;gap:16px;"></div>
+          <button id="addQuestionBtn" class="btn btn-secondary" style="margin-top:14px;width:100%;">➕ הוסף שאלה</button>
+          <button id="saveQuizBtn" class="btn btn-primary" style="margin-top:10px;width:100%;">💾 שמור חידון</button>
+          <div id="quizSuccess" class="admin-success">✅ החידון נשמר!</div>
+        </section>
+        <section class="glass admin-card">
+          <div class="section-head" style="margin:0 0 16px;"><h3>📋 חידונים קיימים</h3></div>
+          <div id="quizzesList" class="stack"></div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ── Panel: Activity Log ───────────────────────────── -->
+    <div class="admin-panel" id="panel-activitylog">
+      <div class="section-head" style="margin-top:8px;">
+        <h2>📋 יומן פעילות</h2>
+        <div class="row" style="gap:8px;">
+          <select id="logFilterAction" class="btn btn-secondary" style="padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.1);">
+            <option value="">כל הפעולות</option>
+            <option value="כניסה">כניסות</option>
+            <option value="צפייה">צפיות</option>
+            <option value="דירוג">דירוגים</option>
+            <option value="חידון">חידונים</option>
+          </select>
+          <button id="clearOldLogBtn" class="btn btn-secondary" style="font-size:12px;padding:8px 12px;">🗑 נקה ישן</button>
+        </div>
+      </div>
+      <div id="activityLogList" class="stack"></div>
     </div>
 
   </div><!-- /container -->
