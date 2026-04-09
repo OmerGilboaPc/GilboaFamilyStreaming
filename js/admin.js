@@ -192,7 +192,9 @@ function renderMoviesList() {
 function loadSeries() {
   onValue(ref(db, 'series'), snap => {
     allSeries = snap.val() || {};
+    buildAllEpisodesFromSeries();
     renderSeriesList();
+    renderEpisodesList();
     updateStats();
     populateEpisodeSeriesSelects();
   });
@@ -292,9 +294,29 @@ function renderSeriesList() {
 // ══════════════════════════════════════════════════════════════
 function loadEpisodes() {
   // פרקים חיים בתוך series/{id}/seasons/{n}/episodes/{n}
-  // לא collection נפרד — loadSeries כבר טוען הכל
-  // כאן רק מרנדרים את הרשימה
+  // בנה את allEpisodes מתוך allSeries שכבר נטען
+  buildAllEpisodesFromSeries();
   renderEpisodesList();
+}
+
+function buildAllEpisodesFromSeries() {
+  allEpisodes = {};
+  Object.entries(allSeries).forEach(([sid, s]) => {
+    const seasons = s.seasons || {};
+    Object.entries(seasons).forEach(([seasonNum, seasonObj]) => {
+      const eps = seasonObj.episodes || {};
+      Object.entries(eps).forEach(([epNum, ep]) => {
+        const key = `${sid}_s${seasonNum}_e${epNum}`;
+        allEpisodes[key] = {
+          ...ep,
+          seriesId: sid,
+          seasonNum: +seasonNum,
+          epNum: +epNum,
+          seriesTitle: s.title,
+        };
+      });
+    });
+  });
 }
 
 function populateEpisodeSeriesSelects() {
@@ -554,7 +576,9 @@ function renderRecentContent() {
   const recent = [
     ...Object.entries(allMovies).map(([id, m]) => ({ id, ...m, _type: 'movie' })),
     ...Object.entries(allSeries).map(([id, s]) => ({ id, ...s, _type: 'series' })),
-    ...Object.entries(allEpisodes).map(([id, ep]) => ({ id, ...ep, _type: 'episode' })),
+    ...Object.values(allEpisodes)
+      .filter(ep => ep.updatedAt)
+      .map(ep => ({ ...ep, createdAt: ep.updatedAt, _type: 'episode' })),
   ]
   .filter(i => i.createdAt)
   .sort((a, b) => b.createdAt - a.createdAt)
@@ -569,7 +593,7 @@ function renderRecentContent() {
     const typeLabel = item._type === 'movie' ? '🎬 סרט'
       : item._type === 'series' ? '📺 סדרה' : '🎞 פרק';
     const parentSeries = item._type === 'episode'
-      ? allSeries[item.seriesId]?.title : '';
+      ? (item.seriesTitle || allSeries[item.seriesId]?.title || '') : '';
 
     const row = document.createElement('div');
     row.className = 'admin-item';
@@ -954,7 +978,7 @@ function loadScheduled() {
         <div class="admin-item-info">
           <div class="admin-item-title">${item.title}</div>
           <div class="admin-item-meta">
-            ${item.type==='movie'?'🎬':'item.type==="series"?📺':'🎞'} •
+            ${item.type==='movie'?'🎬':item.type==='series'?'📺':'🎞'} •
             ${new Date(item.publishAt).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
           </div>
           <div style="margin-top:4px;display:flex;gap:6px;">
