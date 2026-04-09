@@ -861,3 +861,330 @@ document.getElementById('refreshNotifBtn')?.addEventListener('click', loadNotifi
 
 // ── Init ─────────────────────────────────────────────────────
 loadNotifications();
+
+// ════════════════════════════════════════════════════════════
+//  🕐  SCHEDULED CONTENT
+// ════════════════════════════════════════════════════════════
+
+// Toggle episode fields
+document.getElementById('schedType')?.addEventListener('change', e => {
+  const ep = document.getElementById('schedEpisodeFields');
+  if (ep) ep.classList.toggle('hidden', e.target.value !== 'episode');
+  if (e.target.value === 'episode') populateSchedSeriesSelect();
+});
+
+function populateSchedSeriesSelect() {
+  const sel = document.getElementById('schedSeriesSelect');
+  if (!sel) return;
+  sel.innerHTML = '';
+  Object.entries(allSeries).sort((a,b)=>a[1].title.localeCompare(b[1].title,'he')).forEach(([id,s]) => {
+    const opt = document.createElement('option');
+    opt.value = id; opt.textContent = s.title;
+    sel.appendChild(opt);
+  });
+}
+
+document.getElementById('addScheduledBtn')?.addEventListener('click', async () => {
+  const type        = document.getElementById('schedType')?.value;
+  const title       = document.getElementById('schedTitle')?.value.trim();
+  const poster      = document.getElementById('schedPoster')?.value.trim();
+  const category    = document.getElementById('schedCategory')?.value.trim();
+  const description = document.getElementById('schedDescription')?.value.trim();
+  const video       = document.getElementById('schedVideo')?.value.trim();
+  const publishAtRaw= document.getElementById('schedPublishAt')?.value;
+  const visible     = document.getElementById('schedVisible')?.checked || false;
+
+  if (!title)       { showToast('כותרת חובה', 'error'); return; }
+  if (!publishAtRaw){ showToast('תאריך פרסום חובה', 'error'); return; }
+
+  const publishAt = new Date(publishAtRaw).getTime();
+
+  const data = {
+    type, title, publishAt, visible,
+    createdAt: Date.now(),
+    published: false,
+    ...(poster      && { poster }),
+    ...(category    && { category }),
+    ...(description && { description }),
+    ...(video       && { video }),
+  };
+
+  if (type === 'episode') {
+    data.seriesId = document.getElementById('schedSeriesSelect')?.value;
+    data.season   = +document.getElementById('schedSeason')?.value || 1;
+    data.number   = +document.getElementById('schedEpNum')?.value  || 1;
+  }
+
+  const newRef = push(ref(db, 'scheduled'));
+  await set(newRef, data);
+  showAdminSuccess('scheduledSuccess');
+  showToast(`"${title}" תוזמן לפרסום!`, 'success');
+  loadScheduled();
+});
+
+function loadScheduled() {
+  onValue(ref(db, 'scheduled'), snap => {
+    const all  = snap.val() || {};
+    const list = document.getElementById('scheduledList');
+    if (!list) return;
+    list.innerHTML = '';
+
+    const entries = Object.entries(all)
+      .sort((a,b) => (a[1].publishAt||0) - (b[1].publishAt||0));
+
+    if (entries.length === 0) {
+      list.innerHTML = '<div class="muted small" style="padding:12px;">אין תוכן מתוזמן</div>';
+      return;
+    }
+
+    entries.forEach(([sid, item]) => {
+      const now     = Date.now();
+      const isPast  = item.publishAt <= now;
+      const timeStr = isPast
+        ? `✅ פורסם ${timeAgo(item.publishAt)}`
+        : `⏳ בעוד ${formatTimeLeftAdmin(item.publishAt - now)}`;
+
+      const div = document.createElement('div');
+      div.className = 'admin-item';
+      div.style.cssText = item.published ? 'opacity:.5;' : '';
+      div.innerHTML = `
+        <img src="${item.poster||''}" alt="${item.title}"
+             class="admin-item-poster"
+             onerror="this.style.background='#1a1a28';this.src='';" />
+        <div class="admin-item-info">
+          <div class="admin-item-title">${item.title}</div>
+          <div class="admin-item-meta">
+            ${item.type==='movie'?'🎬':'item.type==="series"?📺':'🎞'} •
+            ${new Date(item.publishAt).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+          </div>
+          <div style="margin-top:4px;display:flex;gap:6px;">
+            <span class="badge">${timeStr}</span>
+            ${item.visible ? '<span class="badge" style="background:rgba(34,197,94,0.15);border-color:rgba(34,197,94,0.3);color:#4ade80;">👁 גלוי בבקרוב</span>' : '<span class="badge">🔒 נסתר</span>'}
+            ${item.published ? '<span class="badge badge-red">✅ פורסם</span>' : ''}
+          </div>
+        </div>
+        <button class="btn btn-danger" style="padding:7px 10px;font-size:12px;" data-del-sched="${sid}">🗑</button>
+      `;
+      div.querySelector(`[data-del-sched="${sid}"]`).addEventListener('click', async () => {
+        if (!confirm('למחוק?')) return;
+        await remove(ref(db, `scheduled/${sid}`));
+        showToast('נמחק', 'info');
+      });
+      list.appendChild(div);
+    });
+  });
+}
+
+function formatTimeLeftAdmin(ms) {
+  if (ms <= 0) return 'עולה עכשיו';
+  const h = Math.floor(ms/3600000), d = Math.floor(ms/86400000);
+  if (d>=1) return `${d} ימים`;
+  if (h>=1) return `${h} שעות`;
+  return `${Math.floor(ms/60000)} דקות`;
+}
+
+loadScheduled();
+
+// ════════════════════════════════════════════════════════════
+//  🧠  QUIZZES ADMIN
+// ════════════════════════════════════════════════════════════
+
+let quizQuestions = [];
+
+function populateQuizContentSelect() {
+  const type = document.getElementById('quizContentType')?.value;
+  const sel  = document.getElementById('quizContentSelect');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- ללא שיוך ספציפי --</option>';
+  const source = type === 'movie' ? allMovies : allSeries;
+  Object.entries(source).sort((a,b)=>a[1].title.localeCompare(b[1].title,'he')).forEach(([id,item]) => {
+    const opt = document.createElement('option');
+    opt.value=id; opt.textContent=item.title;
+    sel.appendChild(opt);
+  });
+}
+
+document.getElementById('quizContentType')?.addEventListener('change', populateQuizContentSelect);
+
+document.getElementById('addQuestionBtn')?.addEventListener('click', () => {
+  const idx = quizQuestions.length;
+  quizQuestions.push({ question:'', options:['','','',''], correctIndex:0, explanation:'' });
+  renderQuestionBuilder();
+});
+
+function renderQuestionBuilder() {
+  const builder = document.getElementById('quizQuestionsBuilder');
+  if (!builder) return;
+  builder.innerHTML = '';
+  quizQuestions.forEach((q, idx) => {
+    const div = document.createElement('div');
+    div.style.cssText = 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;';
+    div.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <strong style="font-size:14px;">שאלה ${idx+1}</strong>
+        <button class="btn btn-danger" style="padding:5px 10px;font-size:12px;" data-del-q="${idx}">🗑</button>
+      </div>
+      <div class="form-grid" style="gap:10px;">
+        <input class="q-text" placeholder="טקסט השאלה *" value="${q.question||''}" data-idx="${idx}" />
+        ${[0,1,2,3].map(oi => `
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="radio" name="correct_${idx}" value="${oi}" ${q.correctIndex===oi?'checked':''} data-idx="${idx}" data-oi="${oi}" style="flex-shrink:0;cursor:pointer;width:18px;height:18px;" title="סמן כתשובה נכונה" />
+            <input class="q-opt" placeholder="אפשרות ${oi+1}" value="${q.options[oi]||''}" data-idx="${idx}" data-oi="${oi}" style="flex:1;" />
+          </div>`).join('')}
+        <input class="q-explain" placeholder="הסבר (אופציונלי)" value="${q.explanation||''}" data-idx="${idx}" style="font-size:13px;" />
+      </div>
+    `;
+    div.querySelector(`[data-del-q="${idx}"]`).addEventListener('click', () => {
+      quizQuestions.splice(idx,1);
+      renderQuestionBuilder();
+    });
+    div.querySelectorAll('.q-text').forEach(el => el.addEventListener('input', e => {
+      quizQuestions[+e.target.dataset.idx].question = e.target.value;
+    }));
+    div.querySelectorAll('.q-opt').forEach(el => el.addEventListener('input', e => {
+      quizQuestions[+e.target.dataset.idx].options[+e.target.dataset.oi] = e.target.value;
+    }));
+    div.querySelectorAll('input[type=radio]').forEach(el => el.addEventListener('change', e => {
+      quizQuestions[+e.target.dataset.idx].correctIndex = +e.target.dataset.oi;
+    }));
+    div.querySelectorAll('.q-explain').forEach(el => el.addEventListener('input', e => {
+      quizQuestions[+e.target.dataset.idx].explanation = e.target.value;
+    }));
+    builder.appendChild(div);
+  });
+}
+
+document.getElementById('saveQuizBtn')?.addEventListener('click', async () => {
+  const title       = document.getElementById('quizTitle')?.value.trim();
+  const contentType = document.getElementById('quizContentType')?.value;
+  const contentId   = document.getElementById('quizContentSelect')?.value || '';
+  if (!title)                   { showToast('כותרת חובה','error'); return; }
+  if (quizQuestions.length===0) { showToast('הוסף לפחות שאלה אחת','error'); return; }
+
+  const valid = quizQuestions.every(q => q.question && q.options.filter(Boolean).length >= 2);
+  if (!valid) { showToast('מלא שאלה + לפחות 2 אפשרויות לכל שאלה','error'); return; }
+
+  await push(ref(db,'quizzes'), {
+    title, contentType, contentId,
+    questions:  quizQuestions,
+    active:     true,
+    createdAt:  Date.now(),
+  });
+  quizQuestions = [];
+  renderQuestionBuilder();
+  if (document.getElementById('quizTitle')) document.getElementById('quizTitle').value='';
+  showAdminSuccess('quizSuccess');
+  showToast('החידון נשמר!','success');
+  loadAdminQuizzes();
+});
+
+function loadAdminQuizzes() {
+  onValue(ref(db,'quizzes'), snap => {
+    const all  = snap.val()||{};
+    const list = document.getElementById('quizzesList');
+    if (!list) return;
+    list.innerHTML = '';
+    const entries = Object.entries(all).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+    if (entries.length===0) { list.innerHTML='<div class="muted small" style="padding:12px;">אין חידונים</div>'; return; }
+    entries.forEach(([qid,quiz]) => {
+      const div = document.createElement('div');
+      div.className='admin-item';
+      div.innerHTML = `
+        <div style="font-size:28px;flex-shrink:0;">🧠</div>
+        <div class="admin-item-info">
+          <div class="admin-item-title">${quiz.title}</div>
+          <div class="admin-item-meta">${(quiz.questions||[]).length} שאלות • ${quiz.contentType==='movie'?'🎬':'📺'} • ${timeAgo(quiz.createdAt)}</div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-secondary" style="padding:7px 10px;font-size:12px;" data-toggle-quiz="${qid}" data-active="${quiz.active}">
+            ${quiz.active!==false?'🔒 הסתר':'👁 הצג'}
+          </button>
+          <button class="btn btn-danger" style="padding:7px 10px;font-size:12px;" data-del-quiz="${qid}">🗑</button>
+        </div>
+      `;
+      div.querySelector(`[data-toggle-quiz="${qid}"]`).addEventListener('click', async e => {
+        const cur = e.target.dataset.active !== 'false';
+        await update(ref(db,`quizzes/${qid}`),{active:!cur});
+        showToast(cur?'חידון הוסתר':'חידון הוצג','info');
+      });
+      div.querySelector(`[data-del-quiz="${qid}"]`).addEventListener('click', async () => {
+        if (!confirm('למחוק חידון?')) return;
+        await remove(ref(db,`quizzes/${qid}`));
+        showToast('נמחק','info');
+      });
+      list.appendChild(div);
+    });
+  });
+}
+
+loadAdminQuizzes();
+populateQuizContentSelect();
+
+// ════════════════════════════════════════════════════════════
+//  📋  ACTIVITY LOG
+// ════════════════════════════════════════════════════════════
+
+function loadActivityLog(filterAction='') {
+  const list = document.getElementById('activityLogList');
+  if (!list) return;
+  list.innerHTML = '<div class="muted small" style="padding:12px;">טוען...</div>';
+
+  get(ref(db,'activityLog')).then(snap => {
+    const all = snap.val()||{};
+    list.innerHTML = '';
+    let entries = Object.entries(all).sort((a,b)=>(b[1].timestamp||0)-(a[1].timestamp||0));
+    if (filterAction) entries = entries.filter(([,e])=>(e.action||'').includes(filterAction));
+    if (entries.length===0) { list.innerHTML='<div class="muted small" style="padding:12px;">אין רשומות</div>'; return; }
+
+    const actionIcons = {
+      'כניסה':'👤','צפייה':'🎬','דירוג':'⭐','חידון':'🧠',
+      'הוספה':'➕','מחיקה':'🗑','עריכה':'✏️'
+    };
+    entries.slice(0,100).forEach(([lid,entry]) => {
+      const icon = Object.entries(actionIcons).find(([k])=>(entry.action||'').includes(k))?.[1] || '📋';
+      const div  = document.createElement('div');
+      div.className='admin-item';
+      div.style.cssText='padding:12px 16px;';
+      div.innerHTML = `
+        <div style="font-size:22px;flex-shrink:0;">${icon}</div>
+        <div class="admin-item-info">
+          <div class="admin-item-title" style="font-size:14px;">${entry.action||'פעולה'}</div>
+          <div class="admin-item-meta">
+            👤 ${entry.profileName||entry.email||'לא ידוע'}
+            ${entry.contentTitle?' • 🎬 '+entry.contentTitle:''}
+            ${entry.quizTitle?' • 🧠 '+entry.quizTitle:''}
+            ${entry.stars?' • ⭐'.repeat(entry.stars):''}
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--muted2);flex-shrink:0;white-space:nowrap;">
+          ${new Date(entry.timestamp).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}
+        </div>
+      `;
+      list.appendChild(div);
+    });
+  });
+}
+
+document.getElementById('logFilterAction')?.addEventListener('change', e => loadActivityLog(e.target.value));
+document.getElementById('clearOldLogBtn')?.addEventListener('click', async () => {
+  const weekAgo = Date.now() - 7*24*60*60*1000;
+  const snap = await get(ref(db,'activityLog'));
+  const all  = snap.val()||{};
+  const old  = Object.entries(all).filter(([,e])=>(e.timestamp||0)<weekAgo);
+  await Promise.all(old.map(([id])=>remove(ref(db,`activityLog/${id}`))));
+  showToast(`${old.length} רשומות ישנות נמחקו`,'info');
+  loadActivityLog();
+});
+
+// Load when tab clicked
+document.querySelectorAll('.admin-nav-tab').forEach(tab => {
+  if (tab.dataset.panel==='activitylog') {
+    tab.addEventListener('click', () => loadActivityLog(document.getElementById('logFilterAction')?.value||''));
+  }
+  if (tab.dataset.panel==='scheduled') {
+    tab.addEventListener('click', () => { populateSchedSeriesSelect(); });
+  }
+  if (tab.dataset.panel==='quizzes') {
+    tab.addEventListener('click', () => populateQuizContentSelect());
+  }
+});
