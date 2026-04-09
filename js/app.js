@@ -29,6 +29,22 @@ const db   = getDatabase(app);
 const ADMIN_EMAIL = "omergilboapc@gmail.com";
 const NEW_DAYS    = 7; // כמה ימים נחשב "חדש"
 
+// ── Activity Log ─────────────────────────────────────────────
+async function logActivity(action, details = {}) {
+  if (!currentUser) return;
+  try {
+    await push(ref(db, 'activityLog'), {
+      action,
+      uid:         currentUser.uid,
+      email:       currentUser.email,
+      profileName: currentProfile?.name || 'לא ידוע',
+      profileId:   currentProfile?.id   || '',
+      timestamp:   Date.now(),
+      ...details
+    });
+  } catch(e) { /* fail silently */ }
+}
+
 // ── State ────────────────────────────────────────────────────
 let currentUser    = null;
 let currentProfile = null;
@@ -40,6 +56,8 @@ let watchHistory   = [];   // [{ id, type, title, poster, watchedAt, ... }]
 let continueData   = {};   // { itemId: { progress, timestamp, ... } }
 let currentWishlistFilter = 'all';
 let unsubscribers  = [];
+let allScheduled   = {};
+let allQuizzes     = {};
 
 // ── Helpers ──────────────────────────────────────────────────
 const $  = id => document.getElementById(id);
@@ -150,7 +168,11 @@ function loadProfiles() {
     Object.entries(profiles).forEach(([pid, profile]) => {
       const card = el('div', 'profile-card');
       card.innerHTML = `
-        <div class="profile-avatar">${profile.avatar || '🎬'}</div>
+        <div class="profile-avatar" style="${profile.picUrl ? 'padding:0;overflow:hidden;background:none;' : ''}">
+          ${profile.picUrl
+            ? `<img src="${profile.picUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:24px;" onerror="this.style.display='none'" />`
+            : (profile.avatar || '🎬')}
+        </div>
         <div class="profile-name">${profile.name}</div>
         ${profile.pin ? '<div class="small muted" style="margin-top:4px;">🔒 מוגן</div>' : ''}
       `;
@@ -188,6 +210,8 @@ function selectProfile(pid, profile) {
   showScreen('appScreen');
   loadAll();
   checkNotifications();
+  initWrappedMonthSelector();
+  logActivity('כניסה לפרופיל', { profileName: profile.name });
 }
 
 // ── Profiles Manager ─────────────────────────────────────────
@@ -198,7 +222,9 @@ $('addProfileBtn')?.addEventListener('click', async () => {
   const avatar = $('newProfileAvatar').value.trim() || '🎬';
   const pin    = $('newProfilePin')?.value.trim() || '';
   if (!name) return;
+  const picUrl = $('newProfilePicUrl')?.value.trim() || '';
   const profileData = { name, avatar, createdAt: Date.now() };
+  if (picUrl) profileData.picUrl = picUrl;
   if (pin.length === 4 && /^\d{4}$/.test(pin)) profileData.pin = pin;
   await push(ref(db, `users/${currentUser.uid}/profiles`), profileData);
   $('newProfileName').value  = '';
@@ -260,6 +286,21 @@ function loadAll() {
     renderWishlist();
   });
   unsubscribers.push(seriesUnsub);
+
+  // Scheduled content (בקרוב)
+  const scheduledUnsub = onValue(ref(db, 'scheduled'), snap => {
+    allScheduled = snap.val() || {};
+    renderComingSoon();
+    checkAndPublishScheduled();
+  });
+  unsubscribers.push(scheduledUnsub);
+
+  // Quizzes
+  const quizzesUnsub = onValue(ref(db, 'quizzes'), snap => {
+    allQuizzes = snap.val() || {};
+    renderQuizzesList();
+  });
+  unsubscribers.push(quizzesUnsub);
 
   // Episodes — מבנה: series/{id}/seasons/{n}/episodes/{n}
   // הפרקים נטענים מתוך allSeries ישירות, לא collection נפרד
@@ -915,6 +956,7 @@ function openDetails(id, item, type) {
       body.querySelectorAll('.star-btn').forEach((b, i) =>
         b.classList.toggle('active', i < n));
       window.showToast(`דירגת ${n} כוכבים!`, 'success', '⭐');
+      logActivity('דירוג', { contentTitle: item?.title || id, stars: n });
     });
   });
 
@@ -1071,6 +1113,13 @@ function playVideo(url, title, meta, isEpisode = false, isTrailer = false,
     }
   }
 
+  // Log activity
+  if (!isTrailer) {
+    logActivity(isEpisode ? 'צפייה בפרק' : 'צפייה בסרט', {
+      contentTitle: title,
+      meta: meta || ''
+    });
+  }
   openModal('playerModal');
 }
 
@@ -1209,3 +1258,380 @@ function closeModal(id) { $(id)?.classList.add('hidden'); }
 document.querySelectorAll('[data-close]').forEach(btn => {
   btn.addEventListener('click', () => closeModal(btn.dataset.close));
 });
+
+// ════════════════════════════════════════════════════════════
+//  🕐  COMING SOON / SCHEDULED
+// ════════════════════════════════════════════════════════════
+
+async function checkAndPublishScheduled() {
+  const now = Date.now();
+  for (const [sid, item] of Object.entries(allScheduled)) {
+    if (!item.publishAt || item.published) continue;
+    if (now >= item.publishAt) {
+      // הגיע הזמן לפרסם
+      if (item.type === 'movie') {
+        const { publishAt, visible, published, type, ...movieData } = item;
+        await set(ref(db, `movies/${sid}`), { ...movieData, createdAt: now });
+      } else if (item.type === 'series') {
+        const { publishAt, visible, published, type, ...seriesData } = item;
+        await set(ref(db, `series/${sid}`), { ...seriesData, createdAt: now });
+      } else if (item.type === 'episode' && item.seriesId) {
+        await set(
+          ref(db, `series/${item.seriesId}/seasons/${item.season}/episodes/${item.number}`),
+          { title: item.title, video: item.video || '', poster: item.poster || '',
+            description: item.description || '', updatedAt: now }
+        );
+      }
+      await update(ref(db, `scheduled/${sid}`), { published: true });
+    }
+  }
+}
+
+function renderComingSoon() {
+  const grid  = document.getElementById('comingGrid');
+  const empty = document.getElementById('comingEmpty');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const now   = Date.now();
+  const items = Object.entries(allScheduled)
+    .filter(([, s]) => s.visible && !s.published && s.publishAt > now)
+    .sort((a, b) => a[1].publishAt - b[1].publishAt);
+
+  if (items.length === 0) {
+    empty?.classList.remove('hidden');
+    return;
+  }
+  empty?.classList.add('hidden');
+
+  items.forEach(([sid, item]) => {
+    const card = document.createElement('div');
+    card.className = 'card coming-card';
+    const timeLeft = formatTimeLeft(item.publishAt - now);
+    card.innerHTML = `
+      <div class="poster-wrap" style="position:relative;">
+        <img class="poster" src="${item.poster || ''}" alt="${item.title}"
+             loading="lazy" onerror="this.style.background='#1a1a28';this.src='';" />
+        <div class="coming-overlay">
+          <div class="coming-clock">🕐</div>
+          <div class="coming-time">${timeLeft}</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">${item.title}</div>
+        <div class="card-meta">
+          <span class="badge">${item.type === 'movie' ? '🎬 סרט' : item.type === 'series' ? '📺 סדרה' : '🎞 פרק'}</span>
+          ${item.category ? `<span class="badge">${item.category}</span>` : ''}
+        </div>
+        <div class="coming-date small muted" style="margin-top:8px;">
+          📅 עולה ב: ${new Date(item.publishAt).toLocaleString('he-IL', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+        </div>
+        ${item.description ? `<div class="small muted" style="margin-top:6px;line-height:1.5;">${item.description.slice(0,120)}${item.description.length>120?'...':''}</div>` : ''}
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function formatTimeLeft(ms) {
+  if (ms <= 0) return 'עולה עכשיו!';
+  const h = Math.floor(ms / 3600000);
+  const d = Math.floor(ms / 86400000);
+  const m = Math.floor(ms / 60000);
+  if (d >= 1) return `בעוד ${d} ימים`;
+  if (h >= 1) return `בעוד ${h} שעות`;
+  return `בעוד ${m} דקות`;
+}
+
+// רענן ספירת זמן כל דקה
+setInterval(() => {
+  if (Object.keys(allScheduled).length > 0) {
+    renderComingSoon();
+    checkAndPublishScheduled();
+  }
+}, 60000);
+
+window.addEventListener('viewChanged', e => {
+  if (e.detail === 'coming') renderComingSoon();
+  if (e.detail === 'wrapped') renderWrapped();
+  if (e.detail === 'quizzes') renderQuizzesList();
+});
+
+// ════════════════════════════════════════════════════════════
+//  🧠  QUIZZES
+// ════════════════════════════════════════════════════════════
+
+function renderQuizzesList() {
+  const list  = document.getElementById('quizzesList');
+  const empty = document.getElementById('quizzesEmpty');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const entries = Object.entries(allQuizzes)
+    .filter(([, q]) => q.active !== false)
+    .sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
+
+  if (entries.length === 0) {
+    empty?.classList.remove('hidden');
+    return;
+  }
+  empty?.classList.add('hidden');
+
+  entries.forEach(([qid, quiz]) => {
+    const contentItem = quiz.contentType === 'movie'
+      ? allMovies[quiz.contentId]
+      : allSeries[quiz.contentId];
+
+    const card = document.createElement('div');
+    card.className = 'quiz-card glass';
+    card.innerHTML = `
+      <div class="quiz-card-poster">
+        <img src="${contentItem?.poster || quiz.poster || ''}" alt="${quiz.title}"
+             onerror="this.style.background='#1a1a28';this.src='';" />
+      </div>
+      <div class="quiz-card-body">
+        <div class="quiz-card-eyebrow">${quiz.contentType === 'movie' ? '🎬 סרט' : '📺 סדרה'}</div>
+        <div class="quiz-card-title">${quiz.title}</div>
+        <div class="quiz-card-meta">
+          ${contentItem?.title ? `<span class="badge">${contentItem.title}</span>` : ''}
+          <span class="badge">${(quiz.questions || []).length} שאלות</span>
+        </div>
+        <button class="btn btn-primary quiz-start-btn" style="margin-top:14px;" data-qid="${qid}">
+          🧠 התחל חידון
+        </button>
+      </div>
+    `;
+    card.querySelector('.quiz-start-btn').addEventListener('click', () => startQuiz(qid, quiz));
+    list.appendChild(card);
+  });
+}
+
+let quizState = { qid: null, quiz: null, current: 0, score: 0, answers: [] };
+
+function startQuiz(qid, quiz) {
+  quizState = { qid, quiz, current: 0, score: 0, answers: [] };
+  logActivity('התחיל חידון', { quizTitle: quiz.title });
+  showQuizQuestion();
+  document.getElementById('quizModal')?.classList.remove('hidden');
+}
+
+function showQuizQuestion() {
+  const body = document.getElementById('quizModalBody');
+  if (!body) return;
+  const { quiz, current } = quizState;
+  const questions = quiz.questions || [];
+
+  if (current >= questions.length) {
+    showQuizResults();
+    return;
+  }
+
+  const q       = questions[current];
+  const total   = questions.length;
+  const pct     = Math.round((current / total) * 100);
+
+  body.innerHTML = `
+    <div class="quiz-progress-wrap">
+      <div class="quiz-progress-bar" style="width:${pct}%"></div>
+    </div>
+    <div class="quiz-counter">${current + 1} / ${total}</div>
+    <div class="quiz-question">${q.question}</div>
+    <div class="quiz-options">
+      ${(q.options || []).map((opt, i) => `
+        <button class="quiz-option" data-idx="${i}">${opt}</button>
+      `).join('')}
+    </div>
+  `;
+
+  body.querySelectorAll('.quiz-option').forEach(btn => {
+    btn.addEventListener('click', () => handleAnswer(+btn.dataset.idx));
+  });
+}
+
+function handleAnswer(chosen) {
+  const body = document.getElementById('quizModalBody');
+  const { quiz, current } = quizState;
+  const q = quiz.questions[current];
+  const correct = q.correctIndex;
+  const isRight = chosen === correct;
+
+  if (isRight) quizState.score++;
+  quizState.answers.push({ chosen, correct, isRight });
+
+  // הצג תוצאה לפני השאלה הבאה
+  body.querySelectorAll('.quiz-option').forEach((btn, i) => {
+    btn.disabled = true;
+    if (i === correct) btn.classList.add('quiz-correct');
+    else if (i === chosen && !isRight) btn.classList.add('quiz-wrong');
+  });
+
+  const feedback = document.createElement('div');
+  feedback.className = `quiz-feedback ${isRight ? 'quiz-feedback-right' : 'quiz-feedback-wrong'}`;
+  feedback.innerHTML = isRight
+    ? `✅ נכון! ${q.explanation || ''}`
+    : `❌ לא נכון. התשובה הנכונה: <strong>${q.options[correct]}</strong>. ${q.explanation || ''}`;
+  body.appendChild(feedback);
+
+  const nextBtn = document.createElement('button');
+  nextBtn.className = 'btn btn-primary';
+  nextBtn.style.cssText = 'margin-top:16px;width:100%;';
+  nextBtn.textContent = current + 1 < (quiz.questions || []).length ? 'השאלה הבאה ▶' : '🏁 סיים ותראה תוצאות';
+  nextBtn.addEventListener('click', () => {
+    quizState.current++;
+    showQuizQuestion();
+  });
+  body.appendChild(nextBtn);
+}
+
+function showQuizResults() {
+  const body = document.getElementById('quizModalBody');
+  const { quiz, score, answers } = quizState;
+  const total   = (quiz.questions || []).length;
+  const pct     = Math.round((score / total) * 100);
+  const emoji   = pct === 100 ? '🏆' : pct >= 70 ? '🎉' : pct >= 40 ? '👍' : '📚';
+
+  logActivity('סיים חידון', { quizTitle: quiz.title, score, total, pct });
+
+  body.innerHTML = `
+    <div class="quiz-results">
+      <div class="quiz-results-emoji">${emoji}</div>
+      <div class="quiz-results-title">סיימת את החידון!</div>
+      <div class="quiz-results-score">${score} / ${total}</div>
+      <div class="quiz-results-pct">${pct}% נכון</div>
+      <div class="quiz-results-breakdown">
+        ${answers.map((a, i) => {
+          const q = quiz.questions[i];
+          return `<div class="quiz-breakdown-item ${a.isRight ? 'right' : 'wrong'}">
+            <span class="quiz-breakdown-icon">${a.isRight ? '✅' : '❌'}</span>
+            <span>${q.question}</span>
+            <span class="quiz-breakdown-answer">${a.isRight ? q.options[a.correct] : `${q.options[a.chosen]} → ${q.options[a.correct]}`}</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <button class="btn btn-secondary" id="closeQuizBtn" style="margin-top:20px;width:100%;">סגור</button>
+    </div>
+  `;
+
+  document.getElementById('closeQuizBtn')?.addEventListener('click', () => {
+    document.getElementById('quizModal')?.classList.add('hidden');
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  📊  MONTHLY WRAPPED
+// ════════════════════════════════════════════════════════════
+
+function initWrappedMonthSelector() {
+  const sel = document.getElementById('wrappedMonthSelect');
+  if (!sel) return;
+  const now   = new Date();
+  sel.innerHTML = '';
+  for (let i = 0; i < 6; i++) {
+    const d   = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const lbl = d.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
+    const opt = document.createElement('option');
+    opt.value = val; opt.textContent = lbl;
+    sel.appendChild(opt);
+  }
+  renderWrapped();
+}
+
+function renderWrapped(monthKey = null) {
+  const sel = document.getElementById('wrappedMonthSelect');
+  const key = monthKey || sel?.value;
+  if (!key || !currentProfile) return;
+
+  const [year, month] = key.split('-').map(Number);
+  const startTs = new Date(year, month-1, 1).getTime();
+  const endTs   = new Date(year, month, 1).getTime();
+
+  // סנן היסטוריה לחודש
+  const monthHistory = watchHistory.filter(h => h.watchedAt >= startTs && h.watchedAt < endTs);
+  const movies  = monthHistory.filter(h => h.type === 'movie');
+  const episodes = monthHistory.filter(h => h.type === 'series');
+
+  // מצא הכי נצפה
+  const titleCount = {};
+  monthHistory.forEach(h => { titleCount[h.title] = (titleCount[h.title] || 0) + 1; });
+  const topTitle = Object.entries(titleCount).sort((a,b)=>b[1]-a[1])[0];
+
+  // דירוגים שנתתי
+  const myRatings = [];
+  Object.entries(allMovies).forEach(([,m]) => {
+    const r = m.ratings?.[currentProfile.id];
+    if (r) myRatings.push({ title: m.title, rating: r, type: 'movie' });
+  });
+  Object.entries(allSeries).forEach(([,s]) => {
+    const r = s.ratings?.[currentProfile.id];
+    if (r) myRatings.push({ title: s.title, rating: r, type: 'series' });
+  });
+  const topRated = myRatings.sort((a,b)=>b.rating-a.rating)[0];
+
+  const container = document.getElementById('wrappedContent');
+  if (!container) return;
+
+  if (monthHistory.length === 0) {
+    container.innerHTML = `
+      <div class="empty-panel">
+        <div class="empty-panel-icon">📊</div>
+        <h3>אין נתונים לחודש זה</h3>
+        <p>לא נמצאה פעילות צפייה בחודש הנבחר</p>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="wrapped-grid">
+      <div class="wrapped-card wrapped-card-big glass">
+        <div class="wrapped-icon">🎬</div>
+        <div class="wrapped-num">${movies.length}</div>
+        <div class="wrapped-label">סרטים שצפית</div>
+      </div>
+      <div class="wrapped-card glass">
+        <div class="wrapped-icon">📺</div>
+        <div class="wrapped-num">${episodes.length}</div>
+        <div class="wrapped-label">פרקים שצפית</div>
+      </div>
+      <div class="wrapped-card glass">
+        <div class="wrapped-icon">🎞</div>
+        <div class="wrapped-num">${monthHistory.length}</div>
+        <div class="wrapped-label">סה"כ צפיות</div>
+      </div>
+      ${topTitle ? `
+      <div class="wrapped-card glass">
+        <div class="wrapped-icon">🏆</div>
+        <div class="wrapped-num" style="font-size:18px;">${topTitle[0]}</div>
+        <div class="wrapped-label">הכי הרבה פעמים (${topTitle[1]}×)</div>
+      </div>` : ''}
+      ${topRated ? `
+      <div class="wrapped-card glass">
+        <div class="wrapped-icon">⭐</div>
+        <div class="wrapped-num" style="font-size:18px;">${topRated.title}</div>
+        <div class="wrapped-label">דירגת ${'⭐'.repeat(topRated.rating)}</div>
+      </div>` : ''}
+      <div class="wrapped-card glass">
+        <div class="wrapped-icon">📅</div>
+        <div class="wrapped-num">${myRatings.length}</div>
+        <div class="wrapped-label">סרטים/סדרות שדירגת</div>
+      </div>
+    </div>
+
+    ${monthHistory.length > 0 ? `
+    <div class="section-head" style="margin-top:28px;"><h2>📋 כל הצפיות בחודש</h2></div>
+    <div class="history-list">
+      ${monthHistory.slice(0,20).map(h => `
+        <div class="history-item">
+          <img class="history-thumb" src="${h.poster||''}" alt="${h.title}"
+               onerror="this.style.background='#1a1a28';this.src='';" />
+          <div class="history-info">
+            <div class="history-title">${h.title}</div>
+            <div class="history-meta">${h.type==='movie'?'🎬 סרט':'📺 סדרה'}${h.episode?` • עונה ${h.season} פרק ${h.episode}`:''}</div>
+            <div class="history-time">${new Date(h.watchedAt).toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'})}</div>
+          </div>
+        </div>`).join('')}
+    </div>` : ''}
+  `;
+}
+
+window.addEventListener('wrappedMonthChanged', e => renderWrapped(e.detail));
