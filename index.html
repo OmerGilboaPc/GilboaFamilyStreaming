@@ -4,20 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GILBOASTREAMFAMILY</title>
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
-
   <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
   <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
   <link href="https://unpkg.com/@videojs/themes@1.0.1/dist/city/index.css" rel="stylesheet">
-
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
 
-  <!-- ── Splash ──────────────────────────────────────────── -->
   <div id="splash" class="splash">
     <div class="splash-inner">
       <div class="splash-title">GILBOASTREAMFAMILY</div>
@@ -26,10 +22,9 @@
     </div>
   </div>
 
-  <!-- ── Toast Container ─────────────────────────────────── -->
   <div id="toastContainer"></div>
 
-  <!-- ── Auth Screen ─────────────────────────────────────── -->
+  <!-- Auth -->
   <section id="authScreen" class="screen auth-screen">
     <div class="auth-card glass">
       <div class="logo-row" style="margin-bottom:6px;">
@@ -39,74 +34,56 @@
           <div class="logo-sub">ספריית הסטרימינג המשפחתית</div>
         </div>
       </div>
-
       <div class="tab-row">
         <button class="tab active" data-auth-mode="login">התחברות</button>
         <button class="tab" data-auth-mode="register">הרשמה</button>
       </div>
-
       <div class="form-grid">
         <input id="authEmail" type="email" placeholder="אימייל" autocomplete="email" />
         <input id="authPassword" type="password" placeholder="סיסמה" autocomplete="current-password" />
       </div>
-
       <button id="authActionBtn" class="btn btn-primary btn-block">התחברות</button>
       <p id="authError" class="error"></p>
-      <div class="small muted" style="margin-top:8px; text-align:center;">
-      </div>
     </div>
   </section>
 
-  <!-- ── PIN Modal ───────────────────────────────────────── -->
+  <!-- PIN -->
   <div id="pinModal" class="modal hidden">
     <div class="modal-backdrop"></div>
-    <div class="modal-dialog" style="max-width:340px; text-align:center;">
-      <div style="font-size:40px; margin-bottom:8px;" id="pinProfileEmoji">😀</div>
+    <div class="modal-dialog" style="max-width:340px;text-align:center;">
+      <div style="font-size:40px;margin-bottom:8px;" id="pinProfileEmoji">😀</div>
       <h3 id="pinProfileName" style="margin-bottom:4px;">פרופיל</h3>
       <div class="muted small" style="margin-bottom:4px;">הכנס קוד PIN</div>
-
       <div class="pin-dots" id="pinDots">
-        <div class="pin-dot"></div>
-        <div class="pin-dot"></div>
-        <div class="pin-dot"></div>
-        <div class="pin-dot"></div>
+        <div class="pin-dot"></div><div class="pin-dot"></div>
+        <div class="pin-dot"></div><div class="pin-dot"></div>
       </div>
-
       <div class="pin-error" id="pinError"></div>
-
       <div class="pin-keypad" id="pinKeypad">
-        <button class="pin-key" data-digit="1">1</button>
-        <button class="pin-key" data-digit="2">2</button>
-        <button class="pin-key" data-digit="3">3</button>
-        <button class="pin-key" data-digit="4">4</button>
-        <button class="pin-key" data-digit="5">5</button>
-        <button class="pin-key" data-digit="6">6</button>
-        <button class="pin-key" data-digit="7">7</button>
-        <button class="pin-key" data-digit="8">8</button>
-        <button class="pin-key" data-digit="9">9</button>
+        <button class="pin-key" data-digit="1">1</button><button class="pin-key" data-digit="2">2</button><button class="pin-key" data-digit="3">3</button>
+        <button class="pin-key" data-digit="4">4</button><button class="pin-key" data-digit="5">5</button><button class="pin-key" data-digit="6">6</button>
+        <button class="pin-key" data-digit="7">7</button><button class="pin-key" data-digit="8">8</button><button class="pin-key" data-digit="9">9</button>
         <button class="pin-key pin-del" data-digit="del" style="grid-column:1">⌫</button>
         <button class="pin-key" data-digit="0">0</button>
-        <button class="pin-key" data-digit="cancel" style="grid-column:3; font-size:11px; color:var(--muted);">ביטול</button>
+        <button class="pin-key" data-digit="cancel" style="grid-column:3;font-size:11px;color:var(--muted);">ביטול</button>
       </div>
     </div>
   </div>
 
-  <!-- ── Profiles Screen ─────────────────────────────────── -->
+  <!-- Profiles -->
   <section id="profilesScreen" class="screen hidden">
     <div class="profiles-screen-bg">
       <div class="container" style="width:100%;">
-        <div style="text-align:center; padding:20px 0 8px;">
-          <div class="logo-row" style="justify-content:center; margin-bottom:24px;">
+        <div style="text-align:center;padding:20px 0 8px;">
+          <div class="logo-row" style="justify-content:center;margin-bottom:24px;">
             <div class="logo-box">G</div>
             <div class="logo-title">GILBOASTREAMFAMILY</div>
           </div>
-          <h2 style="font-size:30px; font-weight:900; margin-bottom:6px;">מי צופה עכשיו?</h2>
+          <h2 style="font-size:30px;font-weight:900;margin-bottom:6px;">מי צופה עכשיו?</h2>
           <div class="muted">בחר פרופיל כדי להיכנס</div>
         </div>
-
         <div id="profilesGrid" class="profiles-grid"></div>
-
-        <div class="row" style="justify-content:center; margin-top:36px; gap:12px;">
+        <div class="row" style="justify-content:center;margin-top:36px;gap:12px;">
           <button id="openProfilesManagerBtn" class="btn btn-secondary">✏️ ניהול פרופילים</button>
           <button id="signOutProfilesBtn" class="btn btn-secondary">התנתקות</button>
         </div>
@@ -114,10 +91,8 @@
     </div>
   </section>
 
-  <!-- ── App Screen ──────────────────────────────────────── -->
+  <!-- App -->
   <section id="appScreen" class="screen hidden">
-
-    <!-- Top Bar -->
     <header class="topbar">
       <div class="logo-row">
         <div class="logo-box">G</div>
@@ -126,24 +101,18 @@
           <div class="logo-sub" id="activeProfileLabel">פרופיל</div>
         </div>
       </div>
-
       <div class="top-actions">
-        <!-- Search -->
         <div class="search-wrapper">
           <span class="search-icon">🔍</span>
-          <input id="searchInput" class="search-input" placeholder="חיפוש סרטים וסדרות..." autocomplete="off" />
+          <input id="searchInput" class="search-input" placeholder="חיפוש..." autocomplete="off" />
           <div id="searchResults" class="search-results-dropdown hidden"></div>
         </div>
-
-        <!-- Notifications -->
         <div class="notif-btn-wrap">
           <button id="notifBtn" class="btn btn-secondary" style="position:relative;">
-            🔔
-            <span id="notifBadge" class="notif-dot hidden">0</span>
+            🔔<span id="notifBadge" class="notif-dot hidden">0</span>
           </button>
           <div id="notifPanel" class="notif-panel hidden"></div>
         </div>
-
         <button id="randomBtn" class="btn btn-secondary">🎲 הפתיעו אותי</button>
         <button id="requestsBtn" class="btn btn-secondary">📩 בקשות</button>
         <button id="adminBtn" class="btn btn-secondary hidden">🛠 אדמין</button>
@@ -152,19 +121,19 @@
       </div>
     </header>
 
-    <!-- Main Tabs -->
     <div class="main-tabs">
       <button class="main-tab active" data-view="home">🏠 בית</button>
+      <button class="main-tab" data-view="coming">🕐 בקרוב</button>
+      <button class="main-tab" data-view="quizzes">🧠 חידונים</button>
+      <button class="main-tab" data-view="wrapped">📊 הסיכום שלי</button>
       <button class="main-tab" data-view="wishlist">❤️ הרשימה שלי</button>
       <button class="main-tab" data-view="history">🕒 היסטוריה</button>
     </div>
 
     <main class="container">
 
-      <!-- ══ VIEW: HOME ══════════════════════════════════════ -->
+      <!-- HOME -->
       <div class="view-panel active" id="view-home">
-
-        <!-- Hero -->
         <section class="hero glass">
           <div>
             <div class="eyebrow">PRIVATE • FAMILY • STREAMING</div>
@@ -176,43 +145,29 @@
             </div>
           </div>
           <div class="hero-stats">
-            <div class="stat glass-dark">
-              <span id="moviesCount">0</span>
-              <small>סרטים</small>
-            </div>
-            <div class="stat glass-dark">
-              <span id="seriesCount">0</span>
-              <small>סדרות</small>
-            </div>
-            <div class="stat glass-dark">
-              <span id="episodesCount">0</span>
-              <small>פרקים</small>
-            </div>
+            <div class="stat glass-dark"><span id="moviesCount">0</span><small>סרטים</small></div>
+            <div class="stat glass-dark"><span id="seriesCount">0</span><small>סדרות</small></div>
+            <div class="stat glass-dark"><span id="episodesCount">0</span><small>פרקים</small></div>
           </div>
         </section>
 
-        <!-- Continue Watching -->
         <section id="continueSection">
           <div class="section-head">
             <h2>המשך צפייה</h2>
-            <button id="clearContinueBtn" class="btn btn-secondary" style="font-size:12px; padding:8px 12px;">🗑 נקה הכל</button>
+            <button id="clearContinueBtn" class="btn btn-secondary" style="font-size:12px;padding:8px 12px;">🗑 נקה הכל</button>
           </div>
           <div id="continueGrid" class="content-grid content-grid-wide"></div>
         </section>
 
-        <!-- New This Week -->
         <section id="newThisWeekSection" style="display:none;">
-          <div class="section-head">
-            <h2>✨ חדש השבוע</h2>
-          </div>
+          <div class="section-head"><h2>✨ חדש השבוע</h2></div>
           <div id="newThisWeekGrid" class="content-grid"></div>
         </section>
 
-        <!-- Movies -->
         <section id="moviesSection">
           <div class="section-head">
             <h2>סרטים</h2>
-            <select id="movieSort" class="btn btn-secondary" style="padding:9px 14px; font-size:13px; font-weight:700; cursor:pointer; border:1px solid rgba(255,255,255,0.1);">
+            <select id="movieSort" class="btn btn-secondary" style="padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.1);">
               <option value="default">מיון: ברירת מחדל</option>
               <option value="name">לפי שם</option>
               <option value="rating">לפי דירוג</option>
@@ -223,11 +178,10 @@
           <div id="moviesGrid" class="content-grid"></div>
         </section>
 
-        <!-- Series -->
         <section id="seriesSection">
           <div class="section-head">
             <h2>סדרות</h2>
-            <select id="seriesSort" class="btn btn-secondary" style="padding:9px 14px; font-size:13px; font-weight:700; cursor:pointer; border:1px solid rgba(255,255,255,0.1);">
+            <select id="seriesSort" class="btn btn-secondary" style="padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.1);">
               <option value="default">מיון: ברירת מחדל</option>
               <option value="name">לפי שם</option>
               <option value="rating">לפי דירוג</option>
@@ -236,12 +190,44 @@
           </div>
           <div id="seriesGrid" class="content-grid"></div>
         </section>
+      </div>
 
-      </div><!-- /view-home -->
+      <!-- COMING SOON -->
+      <div class="view-panel" id="view-coming">
+        <div class="section-head" style="margin-top:8px;">
+          <h2>🕐 בקרוב באתר</h2>
+        </div>
+        <div id="comingGrid" class="content-grid"></div>
+        <div id="comingEmpty" class="empty-panel hidden">
+          <div class="empty-panel-icon">🕐</div>
+          <h3>אין תוכן מתוזמן כרגע</h3>
+          <p>כשהמנהל יתזמן תוכן חדש — הוא יופיע כאן</p>
+        </div>
+      </div>
 
-      <!-- ══ VIEW: WISHLIST ══════════════════════════════════ -->
+      <!-- QUIZZES -->
+      <div class="view-panel" id="view-quizzes">
+        <div class="section-head" style="margin-top:8px;"><h2>🧠 חידונים</h2></div>
+        <div id="quizzesList" class="quiz-list"></div>
+        <div id="quizzesEmpty" class="empty-panel hidden">
+          <div class="empty-panel-icon">🧠</div>
+          <h3>אין חידונים עדיין</h3>
+          <p>המנהל יוסיף חידונים בקרוב</p>
+        </div>
+      </div>
+
+      <!-- WRAPPED -->
+      <div class="view-panel" id="view-wrapped">
+        <div class="section-head" style="margin-top:8px;">
+          <h2>📊 הסיכום החודשי שלי</h2>
+          <select id="wrappedMonthSelect" class="btn btn-secondary" style="padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.1);"></select>
+        </div>
+        <div id="wrappedContent"></div>
+      </div>
+
+      <!-- WISHLIST -->
       <div class="view-panel" id="view-wishlist">
-        <div class="section-head" style="margin-top:8px; flex-wrap:wrap; gap:12px;">
+        <div class="section-head" style="margin-top:8px;flex-wrap:wrap;gap:12px;">
           <h2>❤️ הרשימה שלי</h2>
           <div class="wishlist-filters">
             <button class="wf-chip active" data-wf="all">הכל</button>
@@ -255,9 +241,9 @@
           <h3>הרשימה שלך ריקה</h3>
           <p>לחץ על ❤️ על כל סרט או סדרה כדי להוסיף אותם לרשימה שלך</p>
         </div>
-      </div><!-- /view-wishlist -->
+      </div>
 
-      <!-- ══ VIEW: HISTORY ════════════════════════════════════ -->
+      <!-- HISTORY -->
       <div class="view-panel" id="view-history">
         <div class="section-head" style="margin-top:8px;">
           <h2>🕒 היסטוריית צפייה</h2>
@@ -269,12 +255,12 @@
           <h3>אין היסטוריית צפייה</h3>
           <p>הסרטים והפרקים שצפית בהם יופיעו כאן</p>
         </div>
-      </div><!-- /view-history -->
+      </div>
 
     </main>
   </section>
 
-  <!-- ── Details Modal ───────────────────────────────────── -->
+  <!-- Modals -->
   <div id="detailsModal" class="modal hidden">
     <div class="modal-backdrop" data-close="detailsModal"></div>
     <div class="modal-dialog modal-wide">
@@ -283,7 +269,6 @@
     </div>
   </div>
 
-  <!-- ── Player Modal ────────────────────────────────────── -->
   <div id="playerModal" class="modal hidden">
     <div class="modal-backdrop" data-close="playerModal"></div>
     <div class="modal-dialog modal-player">
@@ -293,7 +278,7 @@
           <div id="playerTitle" class="player-title"></div>
           <div id="playerMeta" class="muted small"></div>
         </div>
-        <div class="row" style="gap:8px; flex-shrink:0;">
+        <div class="row" style="gap:8px;flex-shrink:0;">
           <span id="playerTypeLabel" class="badge" style="font-size:12px;"></span>
           <button id="nextEpisodeBtn" class="btn btn-primary hidden">הפרק הבא ▶</button>
         </div>
@@ -303,7 +288,6 @@
     </div>
   </div>
 
-  <!-- ── Requests Modal ──────────────────────────────────── -->
   <div id="requestsModal" class="modal hidden">
     <div class="modal-backdrop" data-close="requestsModal"></div>
     <div class="modal-dialog">
@@ -313,12 +297,11 @@
         <input id="requestTitle" placeholder="שם הסרט או הסדרה" />
         <textarea id="requestNote" placeholder="הערה (אופציונלי)"></textarea>
       </div>
-      <button id="sendRequestBtn" class="btn btn-primary" style="margin-top:12px; width:100%;">שלח בקשה</button>
+      <button id="sendRequestBtn" class="btn btn-primary" style="margin-top:12px;width:100%;">שלח בקשה</button>
       <div id="requestsList" class="stack top-gap"></div>
     </div>
   </div>
 
-  <!-- ── Profiles Manager Modal ──────────────────────────── -->
   <div id="profilesModal" class="modal hidden">
     <div class="modal-backdrop" data-close="profilesModal"></div>
     <div class="modal-dialog">
@@ -327,54 +310,56 @@
       <div class="form-grid">
         <input id="newProfileName" placeholder="שם פרופיל" />
         <input id="newProfileAvatar" placeholder="אימוג'י (למשל 😀)" />
+        <input id="newProfilePicUrl" placeholder="URL של תמונת פרופיל (אופציונלי)" type="url" />
         <input id="newProfilePin" type="password" placeholder="קוד PIN — 4 ספרות (אופציונלי)" maxlength="4" inputmode="numeric" pattern="[0-9]*" />
       </div>
-      <button id="addProfileBtn" class="btn btn-primary" style="margin-top:12px; width:100%;">➕ הוסף פרופיל</button>
+      <button id="addProfileBtn" class="btn btn-primary" style="margin-top:12px;width:100%;">➕ הוסף פרופיל</button>
       <div id="profilesManageList" class="stack top-gap"></div>
     </div>
   </div>
 
-  <!-- ── Scripts ─────────────────────────────────────────── -->
+  <!-- Quiz Modal -->
+  <div id="quizModal" class="modal hidden">
+    <div class="modal-backdrop" data-close="quizModal"></div>
+    <div class="modal-dialog" style="max-width:600px;">
+      <button class="modal-close" data-close="quizModal">✕</button>
+      <div id="quizModalBody"></div>
+    </div>
+  </div>
+
   <script src="https://www.youtube.com/iframe_api"></script>
   <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
   <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
 
   <script>
-    /* ── Toast ──────────────────────────────────────────── */
-    window.showToast = function(msg, type = 'info', icon = '') {
-      const container = document.getElementById('toastContainer');
-      if (!container) return;
-      const icons = { success: '✅', error: '❌', info: 'ℹ️', wishlist: '❤️' };
+    window.showToast = function(msg, type='info', icon='') {
+      const c = document.getElementById('toastContainer');
+      if (!c) return;
+      const icons = {success:'✅',error:'❌',info:'ℹ️',wishlist:'❤️'};
       const t = document.createElement('div');
       t.className = `toast toast-${type}`;
-      t.innerHTML = `<span>${icon || icons[type] || ''}</span><span>${msg}</span>`;
-      container.appendChild(t);
+      t.innerHTML = `<span>${icon||icons[type]||''}</span><span>${msg}</span>`;
+      c.appendChild(t);
       setTimeout(() => t.remove(), 3200);
     };
-
-    /* ── Main Tabs ──────────────────────────────────────── */
     document.querySelectorAll('.main-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
         tab.classList.add('active');
         const view = tab.dataset.view;
-        document.getElementById('view-' + view)?.classList.add('active');
-        window.dispatchEvent(new CustomEvent('viewChanged', { detail: view }));
+        document.getElementById('view-'+view)?.classList.add('active');
+        window.dispatchEvent(new CustomEvent('viewChanged', {detail: view}));
       });
     });
-
-    /* ── Wishlist Filters ───────────────────────────────── */
     document.querySelectorAll('.wf-chip').forEach(chip => {
       chip.addEventListener('click', () => {
         document.querySelectorAll('.wf-chip').forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
-        window.dispatchEvent(new CustomEvent('wishlistFilter', { detail: chip.dataset.wf }));
+        window.dispatchEvent(new CustomEvent('wishlistFilter', {detail: chip.dataset.wf}));
       });
     });
-
-    /* ── Notifications toggle ───────────────────────────── */
-    const notifBtn  = document.getElementById('notifBtn');
+    const notifBtn = document.getElementById('notifBtn');
     const notifPanel = document.getElementById('notifPanel');
     notifBtn?.addEventListener('click', e => {
       e.stopPropagation();
@@ -384,77 +369,52 @@
     });
     document.addEventListener('click', () => notifPanel?.classList.add('hidden'));
     notifPanel?.addEventListener('click', e => e.stopPropagation());
-
-    /* ── PIN keypad ─────────────────────────────────────── */
-    let _pinBuffer   = '';
-    let _pinCallback = null;
-    let _pinLength   = 4;
-
-    window.openPinModal = function(profileName, emoji, pinLength, onSuccess) {
-      _pinBuffer   = '';
-      _pinCallback = onSuccess;
-      _pinLength   = pinLength || 4;
-      document.getElementById('pinProfileName').textContent  = profileName;
-      document.getElementById('pinProfileEmoji').textContent = emoji || '😀';
-      document.getElementById('pinError').textContent = '';
-      _renderPinDots();
+    let _pinBuffer='',_pinCallback=null,_pinLength=4;
+    window.openPinModal = function(name,emoji,len,cb){
+      _pinBuffer='';_pinCallback=cb;_pinLength=len||4;
+      document.getElementById('pinProfileName').textContent=name;
+      document.getElementById('pinProfileEmoji').textContent=emoji||'😀';
+      document.getElementById('pinError').textContent='';
+      _rDots();
       document.getElementById('pinModal').classList.remove('hidden');
     };
-
-    function _renderPinDots() {
-      document.querySelectorAll('.pin-dot').forEach((dot, i) => {
-        dot.classList.toggle('filled', i < _pinBuffer.length);
-      });
-    }
-
-    document.getElementById('pinKeypad')?.addEventListener('click', e => {
-      const key   = e.target.closest('.pin-key');
-      if (!key) return;
-      const digit = key.dataset.digit;
-      if (digit === 'cancel') {
-        document.getElementById('pinModal').classList.add('hidden');
-        return;
-      }
-      if (digit === 'del') {
-        _pinBuffer = _pinBuffer.slice(0, -1);
-        _renderPinDots();
-        return;
-      }
-      if (_pinBuffer.length >= _pinLength) return;
-      _pinBuffer += digit;
-      _renderPinDots();
-      if (_pinBuffer.length === _pinLength) {
-        setTimeout(() => {
-          const ok = _pinCallback && _pinCallback(_pinBuffer);
-          if (ok) {
-            document.getElementById('pinModal').classList.add('hidden');
-          } else {
-            document.getElementById('pinError').textContent = 'קוד PIN שגוי, נסה שוב';
-            const dots = document.getElementById('pinDots');
+    function _rDots(){document.querySelectorAll('.pin-dot').forEach((d,i)=>d.classList.toggle('filled',i<_pinBuffer.length));}
+    document.getElementById('pinKeypad')?.addEventListener('click',e=>{
+      const key=e.target.closest('.pin-key');if(!key)return;
+      const digit=key.dataset.digit;
+      if(digit==='cancel'){document.getElementById('pinModal').classList.add('hidden');return;}
+      if(digit==='del'){_pinBuffer=_pinBuffer.slice(0,-1);_rDots();return;}
+      if(_pinBuffer.length>=_pinLength)return;
+      _pinBuffer+=digit;_rDots();
+      if(_pinBuffer.length===_pinLength){
+        setTimeout(()=>{
+          const ok=_pinCallback&&_pinCallback(_pinBuffer);
+          if(ok){document.getElementById('pinModal').classList.add('hidden');}
+          else{
+            document.getElementById('pinError').textContent='קוד PIN שגוי, נסה שוב';
+            const dots=document.getElementById('pinDots');
             dots.classList.add('pin-shake');
-            setTimeout(() => dots.classList.remove('pin-shake'), 400);
-            _pinBuffer = '';
-            _renderPinDots();
+            setTimeout(()=>dots.classList.remove('pin-shake'),400);
+            _pinBuffer='';_rDots();
           }
-        }, 120);
+        },120);
       }
     });
-
-    /* ── Sort dropdowns ─────────────────────────────────── */
-    ['movieSort', 'seriesSort'].forEach(id => {
-      document.getElementById(id)?.addEventListener('change', e => {
-        window.dispatchEvent(new CustomEvent('sortChanged', {
-          detail: { type: id, value: e.target.value }
-        }));
+    ['movieSort','seriesSort'].forEach(id=>{
+      document.getElementById(id)?.addEventListener('change',e=>{
+        window.dispatchEvent(new CustomEvent('sortChanged',{detail:{type:id,value:e.target.value}}));
       });
     });
-
-    /* ── Clear History ──────────────────────────────────── */
-    document.getElementById('clearHistoryBtn')?.addEventListener('click', () => {
+    document.getElementById('wrappedMonthSelect')?.addEventListener('change',e=>{
+      window.dispatchEvent(new CustomEvent('wrappedMonthChanged',{detail:e.target.value}));
+    });
+    document.getElementById('clearHistoryBtn')?.addEventListener('click',()=>{
       window.dispatchEvent(new Event('clearHistory'));
     });
+    document.querySelectorAll('[data-close]').forEach(btn=>{
+      btn.addEventListener('click',()=>document.getElementById(btn.dataset.close)?.classList.add('hidden'));
+    });
   </script>
-
   <script type="module" src="js/app.js"></script>
 </body>
 </html>
