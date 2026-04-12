@@ -291,6 +291,7 @@ function loadAll() {
   const scheduledUnsub = onValue(ref(db, 'scheduled'), snap => {
     allScheduled = snap.val() || {};
     renderComingSoon();
+    renderHomeComingSoon();
     checkAndPublishScheduled();
   });
   unsubscribers.push(scheduledUnsub);
@@ -1347,6 +1348,7 @@ function formatTimeLeft(ms) {
 setInterval(() => {
   if (Object.keys(allScheduled).length > 0) {
     renderComingSoon();
+    renderHomeComingSoon();
     checkAndPublishScheduled();
   }
 }, 60000);
@@ -1635,3 +1637,66 @@ function renderWrapped(monthKey = null) {
 }
 
 window.addEventListener('wrappedMonthChanged', e => renderWrapped(e.detail));
+
+
+// ── Coming Soon — Section בדף הבית ───────────────────────────
+function renderHomeComingSoon() {
+  const section = document.getElementById('homeComing');
+  const grid    = document.getElementById('homeComingGrid');
+  if (!section || !grid) return;
+
+  const now   = Date.now();
+  const items = Object.entries(allScheduled)
+    .filter(([, s]) => s.visible && !s.published && s.publishAt > now)
+    .sort((a, b) => a[1].publishAt - b[1].publishAt);
+
+  section.style.display = items.length > 0 ? '' : 'none';
+  grid.innerHTML = '';
+  items.forEach(([sid, item]) => grid.appendChild(buildComingCard(sid, item)));
+}
+
+function buildComingCard(sid, item) {
+  const now  = Date.now();
+  const ms   = item.publishAt - now;
+  const card = document.createElement('div');
+  card.className = 'card coming-card';
+  card.innerHTML = `
+    <div class="poster-wrap" style="position:relative;">
+      <img class="poster" src="${item.poster || ''}" alt="${item.title}"
+           loading="lazy" onerror="this.style.background='#1a1a28';this.src='';"
+           style="filter:brightness(0.7);" />
+      <div style="
+        position:absolute;inset:0;
+        background:linear-gradient(to top,rgba(0,0,0,0.88) 0%,rgba(0,0,0,0.2) 60%,transparent 100%);
+        display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+        padding:14px;gap:5px;">
+        <span style="font-size:24px;">🕐</span>
+        <span style="font-size:12px;font-weight:800;color:#fff;
+                     background:rgba(229,9,20,0.85);padding:4px 10px;border-radius:999px;">
+          ${formatTimeLeftShort(ms)}
+        </span>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="card-title">${item.title}</div>
+      <div class="card-meta">
+        <span class="badge">${item.type === 'movie' ? '🎬 סרט' : item.type === 'series' ? '📺 סדרה' : '🎞 פרק'}</span>
+        ${item.category ? `<span class="badge">${item.category}</span>` : ''}
+      </div>
+      <div class="small muted" style="margin-top:8px;font-weight:600;">
+        📅 ${new Date(item.publishAt).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}
+      </div>
+    </div>
+  `;
+  return card;
+}
+
+function formatTimeLeftShort(ms) {
+  if (ms <= 0) return 'עולה עכשיו!';
+  const m = Math.floor(ms / 60000);
+  const h = Math.floor(ms / 3600000);
+  const d = Math.floor(ms / 86400000);
+  if (d >= 1) return `בעוד ${d} ימים`;
+  if (h >= 1) return `בעוד ${h} שע'`;
+  return `בעוד ${m} דק'`;
+}
